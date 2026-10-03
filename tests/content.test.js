@@ -27,13 +27,19 @@ for (const lesson of LESSONS) {
 let puzzles = 0;
 for (const theme of P.THEMES) {
   for (const level of [1, 2, 3]) {
-    for (let seed = 1; seed <= 30; seed++) {
+    for (let seed = 1; seed <= (theme.id === 'capture' ? 300 : 30); seed++) {
       const pz = P.makePuzzle(theme.id, level, seed);
       assert(pz, `${theme.id} L${level} seed ${seed} failed to generate`);
       const pos = C.parseFEN(pz.fen);
       assert(!C.inCheck(pos, 'b'), 'black must not be in check');
       assert(pz.solutions.length >= 1, 'puzzle needs a solution');
       for (const m of pz.solutions) assert(P.GOALS[pz.goal].test(pos, m));
+      if (pz.goal === 'capture') {
+        // Every accepted capture must be impossible to take back, and there must be
+        // no guarded capture that still wins material (it would confuse the lesson).
+        for (const m of pz.solutions) assert(!C.legalMoves(C.makeMove(pos, m)).some((r) => r.to === m.to), `${theme.id} L${level} seed ${seed}: accepted capture can be taken back`);
+        for (const m of C.legalMoves(pos)) assert(!P.isWinningTrade(pos, m), `${theme.id} L${level} seed ${seed}: has a winning trade`);
+      }
       if (pz.goal === 'mate1') for (const m of pz.solutions) assert(P.isMate(pos, m));
       if (pz.goal === 'mate2') {
         const m = pz.solutions[0];

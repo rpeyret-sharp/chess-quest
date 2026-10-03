@@ -50,15 +50,19 @@
   }
 
   // ---- goal tests --------------------------------------------------------
-  function isFreeCapture(pos, m) {
-    if (!m.captured) return false;
+  // Free = after the capture, Black has no legal way to take back.
+  // Uses legal moves, so pinned defenders and kings that cannot recapture are handled.
+  function canRecapture(pos, m) {
     const next = C.makeMove(pos, m);
-    if (!C.attacked(next.board, m.to, 'b')) return true;
-    return VALUE[m.captured[1]] > VALUE[m.piece[1]];
+    return C.legalMoves(next).some((r) => r.to === m.to);
   }
+  function isFreeCapture(pos, m) {
+    return !!m.captured && !canRecapture(pos, m);
+  }
+  // A guarded capture that still wins material (e.g. pawn takes a guarded knight).
+  const isWinningTrade = (pos, m) => !!m.captured && canRecapture(pos, m) && VALUE[m.captured[1]] > VALUE[m.piece[1]];
   function isSafeCheck(pos, m) {
-    const next = C.makeMove(pos, m);
-    return C.inCheck(next, 'b') && !C.attacked(next.board, m.to, 'b');
+    return C.givesCheck(pos, m) && !canRecapture(pos, m);
   }
   function isMate(pos, m) {
     const next = C.makeMove(pos, m);
@@ -80,8 +84,8 @@
     if (m.piece !== 'wN') return false;
     const t = forkTargets(pos, m);
     if (t.length < 2) return false;
+    if (canRecapture(pos, m)) return false;
     const next = C.makeMove(pos, m);
-    if (C.attacked(next.board, m.to, 'b')) return false;
     return t.some((s) => 'KQR'.includes(next.board[s][1]));
   }
   // Moves that keep a forced mate-in-2 (or mate at once).
@@ -167,6 +171,8 @@
     const good = caps.filter((m) => isFreeCapture(pos, m));
     const targets = new Set(good.map((m) => m.to));
     if (targets.size !== 1) return null;
+    // Keep the lesson clean: no guarded captures that would still win material.
+    if (caps.some((m) => isWinningTrade(pos, m))) return null;
     const bad = caps.length - good.length;
     if (level === 1 ? bad !== 0 : bad < level - 1) return null;
     return pos;
@@ -275,7 +281,7 @@
     for (let i = 0; i < extras; i++) place(pos, pick(rnd, ['bP', 'bP', 'wP', 'wP', 'bN', 'wB']), rnd);
     if (!sane(pos) || C.inCheck(pos, 'w')) return null;
     const moves = C.legalMoves(pos);
-    if (moves.some((m) => m.captured && isFreeCapture(pos, m) && VALUE[m.captured[1]] >= 3)) return null;
+    if (moves.some((m) => m.captured && VALUE[m.captured[1]] >= 3 && (isFreeCapture(pos, m) || isWinningTrade(pos, m)))) return null;
     const forks = moves.filter((m) => isFork(pos, m));
     return forks.length === 1 ? pos : null;
   }
@@ -336,7 +342,7 @@
     return best;
   }
 
-  const api = { THEMES, THEME, GOALS, makePuzzle, solutionsFor, defenceFor, isMate, isFreeCapture, mulberry32 };
+  const api = { THEMES, THEME, GOALS, makePuzzle, solutionsFor, defenceFor, isMate, isFreeCapture, isWinningTrade, mulberry32 };
   root.Puzzles = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
