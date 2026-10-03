@@ -165,31 +165,39 @@ h1, h2, h3 { font-family: var(--font-display); line-height: 1.1; margin: 0; text
 .section-title { font-size: 26px; margin-top: 6px; }
 .lead { margin: -6px 0 0; color: var(--ink-soft); font-weight: 700; }
 
-/* ---------- Stage layout (board + talk + actions) ---------- */
+/* ---------- Stage layout (board + talk + actions) ----------
+   A board screen is exactly one viewport tall, so nothing ever needs scrolling: the talk panel and the
+   buttons take the room they need, and the board gets whatever is left (container query units). */
+#app:has(> .screen > .stage) { height: 100dvh; display: flex; flex-direction: column; }
+@supports not (height: 100dvh) { #app:has(> .screen > .stage) { height: 100vh; } }
+.screen:has(> .stage) { flex: 1; min-height: 0; width: 100%; }
 .stage {
-  --bs: min(calc(100dvh - 130px), calc(100vw - 32px - 380px), 780px);
+  flex: 1; min-height: 0; container-type: size;
   display: grid; justify-content: center; gap: 18px 26px;
-  grid-template-columns: var(--bs) minmax(260px, 340px);
+  grid-template-columns: auto minmax(260px, 340px);
   grid-template-areas: "board talk" "board actions";
   grid-template-rows: auto 1fr;
   align-items: start;
 }
-@supports not (height: 100dvh) { .stage { --bs: min(calc(100vh - 130px), calc(100vw - 32px - 380px), 780px); } }
 .stage .talk { grid-area: talk; display: flex; flex-direction: column; gap: 14px; }
 .stage .board-wrap { grid-area: board; }
 .stage .actions { grid-area: actions; display: flex; flex-direction: column; gap: 14px; }
+/* Landscape: the board is as tall as the stage (less its 8px shadow), and leaves room for the side column. */
+.stage .board-frame { width: min(100cqh - 8px, 100cqw - 366px, 780px); }
 @media (max-aspect-ratio: 1/1), (max-width: 760px) {
   .stage {
-    --bs: min(calc(100vw - 32px), calc(100dvh - 330px), 780px);
-    grid-template-columns: var(--bs);
+    grid-template-columns: minmax(0, 780px);
     grid-template-areas: "talk" "board" "actions";
-    grid-template-rows: auto;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    align-items: stretch;
   }
+  /* Portrait: the board row is whatever the talk panel and buttons leave over. */
+  .stage .board-wrap { container-type: size; display: flex; justify-content: center; }
+  .stage .board-frame { width: min(100cqw, 100cqh - 8px); }
+  /* Room for two lines, so the board does not change size each time Pip says something. */
+  .stage .bubble { min-height: calc(2.6em + 28px); display: flex; align-items: center; }
   .stage .actions { flex-direction: row; flex-wrap: wrap; justify-content: center; }
   .stage .actions .btn { flex: 1 1 140px; }
-}
-@media (max-aspect-ratio: 1/1) and (max-width: 760px) {
-  .stage { --bs: calc(100vw - 32px); }
 }
 
 .bubble-wrap { display: flex; align-items: flex-end; gap: 10px; }
@@ -214,7 +222,7 @@ img.pip { display: block; object-fit: contain; -webkit-user-drag: none; }
 .stage-dots i.cur { background: var(--sun); box-shadow: none; }
 
 /* ---------- Board ---------- */
-.board-frame { width: var(--bs); max-width: 100%; padding: 8px; border-radius: 16px; background: var(--ink); box-shadow: 0 8px 0 #0F1A2C; position: relative; }
+.board-frame { max-width: 100%; padding: 8px; border-radius: 16px; background: var(--ink); box-shadow: 0 8px 0 #0F1A2C; position: relative; }
 .board {
   position: relative; width: 100%; aspect-ratio: 1; display: grid;
   grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr);
@@ -259,9 +267,21 @@ img.pip { display: block; object-fit: contain; -webkit-user-drag: none; }
 .player b { font-family: var(--font-display); font-size: 24px; display: block; line-height: 1.1; }
 .player small { font-weight: 800; color: var(--ink-soft); font-size: 15px; }
 .player.thinking .face { animation: bob .6s ease-in-out infinite; }
-#botcard, #youcard { transition: opacity .2s, box-shadow .2s; opacity: .62; }
-#botcard.turn, #youcard.turn { opacity: 1; box-shadow: 0 0 0 4px var(--sun), 0 5px 0 4px var(--sun-deep); }
-#youcard.turn small { color: var(--leaf-deep); }
+#botcard, #youcard, .turncard { transition: opacity .2s, box-shadow .2s; opacity: .62; }
+#botcard.turn, #youcard.turn, .turncard.turn { opacity: 1; box-shadow: 0 0 0 4px var(--sun), 0 5px 0 4px var(--sun-deep); }
+#youcard.turn small, .turncard.turn small { color: var(--leaf-deep); }
+#turn:empty { display: none; }
+/* Portrait: the board needs the height, so the card is one short row. */
+@media (max-aspect-ratio: 1/1), (max-width: 760px) {
+  .turncard { padding: 6px 8px 6px 14px; gap: 10px; }
+  .turncard .face { display: none; }
+  .turncard .who { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .turncard b { font-size: 20px; display: inline; }
+  .turncard .side { font-size: 15px; }
+  .turncard .side img { width: 24px; height: 24px; }
+  .stage:has(.turncard) { --bs: min(calc(100vw - 32px), calc(100dvh - 384px), 780px); }
+}
+@media (max-aspect-ratio: 1/1) and (max-width: 760px) { .stage:has(.turncard) { --bs: calc(100vw - 32px); } }
 .side { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px 4px 6px; border-radius: 99px; font-family: var(--font-display); font-weight: 800; font-size: 17px; }
 .side img { width: 30px; height: 30px; }
 .side-w { background: #F4F1E6; color: var(--ink); box-shadow: inset 0 0 0 2px #D8D2BC; }

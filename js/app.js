@@ -291,9 +291,20 @@
 
   function stageHTML(title, right) {
     return `${topbar(title, right)}<main class="stage">` +
-      `<section class="talk">${talkHTML()}<div class="counter" id="counter"></div><div class="lvl" id="lvl"></div><p class="pid" id="pid"></p></section>` +
+      `<section class="talk">${talkHTML()}<div id="turn"></div><div class="counter" id="counter"></div><div class="lvl" id="lvl"></div><p class="pid" id="pid"></p></section>` +
       `<section class="board-wrap"><div class="board-frame"><div id="board"></div></div></section>` +
       `<section class="actions" id="actions"></section></main>`;
+  }
+
+  // Lessons and puzzles: she always plays White. This card says so, and lights up when it is her move.
+  function turnCard(el) {
+    const box = $('#turn', el);
+    box.innerHTML = `<div class="player turncard"><span class="face">${ME('face')}</span><span class="who"><b>${S.name ? esc(S.name) : 'You'}</b><small class="state"></small></span>${sideChip('w')}</div>`;
+    const card = box.firstChild, state = $('.state', box);
+    return (who) => {
+      card.classList.toggle('turn', who === 'you');
+      state.textContent = who === 'you' ? 'Your turn! Move a white piece.' : who === 'black' ? 'Black is moving…' : 'Well done!';
+    };
   }
 
   // Small reference shown under each exercise so a grown-up can report a problem puzzle.
@@ -508,6 +519,7 @@
     const dots = `<span class="stage-dots">${lesson.stages.map((_, i) => `<i class="${i === idx ? 'cur' : rec[i] ? 'on' : ''}"></i>`).join('')}</span>`;
     const el = show(stageHTML(lesson.title, dots), screenLearn);
     const talk = makeTalk(el);
+    const setTurn = turnCard(el);
     const counter = $('#counter', el), actions = $('#actions', el);
     const intro = idx === 0 ? lesson.intro + ' ' : '';
     setPid(el, stage.puzzle ? `Puzzle ID: ${stage.puzzle.id} (lesson ${id} ${idx + 1})` : `Lesson ID: ${id}-${idx + 1}`);
@@ -515,6 +527,7 @@
 
     const finish = (stars) => {
       board.locked = true;
+      setTurn(null);
       const r = S.lessons[id] = S.lessons[id] || {};
       const prev = r[idx] || 0;
       if (stars > prev) { addStars(stars - prev); r[idx] = stars; save(); }
@@ -567,12 +580,13 @@
         onIllegal(from) { board.shake(from); Sound.bad(); talk(HOW[pos.board[from][1]], 'oops'); },
       });
       board.set(pos, { stars: remaining });
+      setTurn('you');
     } else if (stage.kind === 'puzzle') {
       // Stars: 3, minus one per mistake and per hint, never below 1.
       let hintsUsed = 0;
       actions.innerHTML = `<button class="btn sun" type="button" data-act="hint"></button>`;
       runner = puzzleRunner($('#board', el), stage.puzzle, {
-        talk,
+        talk, turn: setTurn,
         solved(mistakes) { lessonHints.stop(); finish(Math.max(1, 3 - mistakes - hintsUsed)); },
       });
       const lessonHints = hintButton($('[data-act="hint"]', actions), { onUse(n) { if (runner.hint(n) === false) return false; hintsUsed = n; } });
@@ -609,6 +623,7 @@
         },
       });
       board.set(pos, {});
+      setTurn('you');
     }
     cleanup = () => { if (runner) runner.destroy(); };
   }
@@ -646,18 +661,21 @@
     const lined = puzzle.goal === 'line';
     const start = C.parseFEN(puzzle.fen);
     let pos = start, step = 0, mistakes = 0, done = false, timer = null;
+    const turn = hooks.turn || (() => {});
     const board = new window.Board(boardEl, { showDots: S.settings.dots, movable: () => 'w', onMove, onIllegal });
     if (puzzle.before) {
       // Lichess puzzles start with Black's last move, so she sees what just happened.
       const before = C.parseFEN(puzzle.before), m = C.fromUCI(before, puzzle.setup);
       board.set(before, {});
       board.locked = true;
+      turn('black');
       timer = setTimeout(() => {
         Sound.forMove(m, start);
         board.set(start, { last: [m.from, m.to], check: checkSq(start) }, m);
         board.locked = false;
+        turn('you');
       }, 900);
-    } else board.set(pos, { check: checkSq(pos) });
+    } else { board.set(pos, { check: checkSq(pos) }); turn('you'); }
     hooks.talk(puzzle.prompt);
 
     // The move the puzzle wants now (Lichess line), or every move that does the job.
@@ -682,6 +700,7 @@
       if (puzzle.goal === 'mate2' && step === 0 && !P.isMate(start, m)) {
         step = 1;
         board.locked = true;
+        turn('black');
         hooks.talk('Great first move! Now watch Black…', 'good', false);
         timer = setTimeout(() => {
           const r = P.defenceFor(pos);
@@ -690,12 +709,14 @@
           board.set(after, { last: [r.from, r.to], check: checkSq(after) }, r);
           pos = after;
           board.locked = false;
+          turn('you');
           hooks.talk('Now finish it. Find checkmate!');
         }, 900);
         return;
       }
       done = true;
       board.locked = true;
+      turn(null);
       setTimeout(() => hooks.solved(mistakes), 250);
     }
 
@@ -716,10 +737,12 @@
       if (mate || step >= puzzle.line.length) {
         done = true;
         board.locked = true;
+        turn(null);
         setTimeout(() => hooks.solved(mistakes), 250);
         return;
       }
       board.locked = true;
+      turn('black');
       hooks.talk('Good move! Now watch Black…', 'good', false);
       timer = setTimeout(() => {
         const r = wanted();
@@ -729,6 +752,7 @@
         pos = after;
         step++;
         board.locked = false;
+        turn('you');
         hooks.talk('Keep going! Find the next move.');
       }, 900);
     }
@@ -889,7 +913,7 @@
 
     let hints = null;
     const runner = puzzleRunner($('#board', el), puzzle, {
-      talk,
+      talk, turn: turnCard(el),
       solved() {
         if (hints) hints.stop();
         const stars = worth();
