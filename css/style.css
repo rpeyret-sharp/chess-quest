@@ -279,9 +279,7 @@ img.pip { display: block; object-fit: contain; -webkit-user-drag: none; }
   .turncard b { font-size: 20px; display: inline; }
   .turncard .side { font-size: 15px; }
   .turncard .side img { width: 24px; height: 24px; }
-  .stage:has(.turncard) { --bs: min(calc(100vw - 32px), calc(100dvh - 384px), 780px); }
 }
-@media (max-aspect-ratio: 1/1) and (max-width: 760px) { .stage:has(.turncard) { --bs: calc(100vw - 32px); } }
 .side { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px 4px 6px; border-radius: 99px; font-family: var(--font-display); font-weight: 800; font-size: 17px; }
 .side img { width: 30px; height: 30px; }
 .side-w { background: #F4F1E6; color: var(--ink); box-shadow: inset 0 0 0 2px #D8D2BC; }
@@ -363,7 +361,21 @@ img.pip { display: block; object-fit: contain; -webkit-user-drag: none; }
 @media (max-width: 560px) { .daily .dots { flex-basis: 100%; } }
 
 .pid { margin: 0; font-size: 13px; font-weight: 700; color: var(--ink-soft); opacity: .8; -webkit-user-select: text; user-select: text; font-variant-numeric: tabular-nums; }
-@media (max-aspect-ratio: 1/1), (max-width: 760px) { .stage .talk { gap: 10px; } }
+/* Portrait: every pixel of the talk panel comes off the board, so the counters, level bar and
+   puzzle ID share one row under the bubble and the turn card, wrapping only when they must. */
+@media (max-aspect-ratio: 1/1), (max-width: 760px) {
+  .stage .talk { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+  .stage .talk > .bubble-wrap, .stage .talk > #turn { flex: 1 1 100%; }
+  .stage .counter { gap: 8px; font-size: 16px; }
+  .stage .counter span { padding: 3px 10px; }
+  .stage .lvl { flex: 1 1 220px; width: auto; flex-direction: row; align-items: center; gap: 10px; }
+  .stage .lvl-row { flex: 1; min-width: 100px; }
+  .stage .lvl .bar { height: 12px; }
+  .stage .lvl-text { flex: none; }
+  .stage .pid { flex: none; margin-left: auto; font-size: 12px; }
+  .stage .bubble-wrap .pip { width: 54px; height: 60px; }
+  .stage .bubble { padding: 10px 16px; font-size: 20px; min-height: calc(2.6em + 20px); }
+}
 
 /* Hints, puzzle history */
 .btn .cost { font-size: .7em; opacity: .8; font-weight: 800; }
