@@ -16,13 +16,15 @@
     lessons: {}, themes: {}, games: {},
     daily: { date: '', list: [], done: 0 },
     streak: { count: 0, last: '' },
-    play: { bot: 'chick', variant: 'chess', color: 'w' },
+    play: { bot: 'chick', variant: 'chess', side: 'r' },
     history: [],
     settings: { sound: true, voice: true, dots: true, unlockAll: false, hintWait: 20 },
   });
   function hydrate(d) {
     const s = Object.assign(DEFAULTS(), d);
     for (const k of ['daily', 'streak', 'play', 'settings']) s[k] = Object.assign(DEFAULTS()[k], d[k] || {});
+    // 'color' was the old fixed White/Black pick; 'side' replaced it so everyone starts on Random.
+    delete s.play.color;
     return s;
   }
   function load() {
@@ -938,8 +940,9 @@
             <button type="button" data-variant="pawns" class="${p.variant === 'pawns' ? 'on' : ''}">${img('wP')} Pawn Battle</button>
           </div>
           <div class="toggle" role="group" aria-label="Your colour">
-            <button type="button" data-color="w" class="${p.color === 'w' ? 'on' : ''}">${img('wN')} White</button>
-            <button type="button" data-color="b" class="${p.color === 'b' ? 'on' : ''}">${img('bN')} Black</button>
+            <button type="button" data-side="r" class="${p.side === 'r' ? 'on' : ''}">🎲 Random</button>
+            <button type="button" data-side="w" class="${p.side === 'w' ? 'on' : ''}">${img('wN')} White</button>
+            <button type="button" data-side="b" class="${p.side === 'b' ? 'on' : ''}">${img('bN')} Black</button>
           </div>
         </div>
         <p class="lead" style="margin:0">${p.variant === 'pawns' ? 'Pawn Battle: only pawns! Get one pawn to the other side, or capture all the robot’s pawns, to win. If a player cannot move, it is a draw.' : 'A real game of chess. Checkmate the robot’s king to win!'}</p>
@@ -949,7 +952,7 @@
         if (!b) return;
         if (b.dataset.bot) { p.bot = b.dataset.bot; save(); render(); }
         else if (b.dataset.variant) { p.variant = b.dataset.variant; save(); render(); }
-        else if (b.dataset.color) { p.color = b.dataset.color; save(); render(); }
+        else if (b.dataset.side) { p.side = b.dataset.side; save(); render(); }
         else if (b.dataset.act === 'start') screenGame();
         else if (b.dataset.act === 'games') screenGames();
       });
@@ -977,7 +980,7 @@
   function screenGame() {
     const cfg = S.play;
     const bot = A.BOTS.find((b) => b.id === cfg.bot);
-    const you = cfg.color;
+    const you = cfg.side === 'w' || cfg.side === 'b' ? cfg.side : rand(['w', 'b']);
     const variant = cfg.variant;
     const pawns = variant === 'pawns';
     const start = startPosition(variant);
