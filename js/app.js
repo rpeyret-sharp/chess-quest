@@ -913,6 +913,10 @@
     blocked: 'No pawn can move, so it is a draw. Just like stalemate in chess!'
   };
 
+  const colourName = (c) => (c === 'w' ? 'White' : 'Black');
+  // A king in the player's colour with its name, so it is clear who plays which side.
+  const sideChip = (c) => `<span class="side side-${c}">${img(c + 'K')}${colourName(c)}</span>`;
+
   function startPosition(variant) {
     if (variant !== 'pawns') return C.parseFEN(C.START_FEN);
     return Object.assign(C.parseFEN('8/pppppppp/8/8/8/8/PPPPPPPP/8 w - - 0 1'), { variant: 'pawns', noPromo: true });
@@ -950,13 +954,13 @@
     const el = show(`${topbar(`${pawns ? 'Pawn Battle' : 'Chess'} vs ${bot.name}`)}
       <main class="stage">
         <section class="talk">
-          <div class="player" id="botcard"><span class="face">${bot.emoji}</span><span class="who"><b>${bot.name}</b><small class="state"></small></span></div>
+          <div class="player" id="botcard"><span class="face">${bot.emoji}</span><span class="who"><b>${bot.name}</b><small class="state"></small></span>${sideChip(C.other(you))}</div>
           <div class="caps" id="botcaps"></div>
           ${talkHTML()}
         </section>
         <section class="board-wrap"><div class="board-frame"><div id="board"></div></div></section>
         <section class="actions">
-          <div class="player"><span class="face">${PIP.replace('class="pip"', 'class="pip" style="width:44px;height:48px"')}</span><span class="who"><b>${youName}</b><small>${you === 'w' ? 'White' : 'Black'}</small></span></div>
+          <div class="player" id="youcard"><span class="face">${PIP.replace('class="pip"', 'class="pip" style="width:44px;height:48px"')}</span><span class="who"><b>${youName}</b><small class="state"></small></span>${sideChip(you)}</div>
           <div class="caps" id="youcaps"></div>
           <button class="btn blue" type="button" data-act="undo"><span class="ico">↶</span> Oops! Undo</button>
           <button class="btn sun" type="button" data-act="hint"></button>
@@ -965,6 +969,17 @@
       </main>`, screenPlaySetup);
     const talk = makeTalk(el);
     const botState = $('#botcard .state', el), botCard = $('#botcard', el);
+    const youState = $('#youcard .state', el), youCard = $('#youcard', el);
+    const youColour = colourName(you).toLowerCase();
+
+    // Light up the card of whoever moves next, dim the other one.
+    function showTurn(who) {
+      botCard.classList.toggle('turn', who === 'bot');
+      youCard.classList.toggle('turn', who === 'you');
+      botCard.classList.toggle('thinking', who === 'bot');
+      botState.textContent = who === 'bot' ? 'Thinking…' : who === 'you' ? 'Waiting for you' : 'Game over';
+      youState.textContent = who === 'you' ? 'Your turn!' : who === 'bot' ? `Wait for ${bot.name}…` : 'Game over';
+    }
 
     function capsHTML(pos, byColor) {
       const opp = C.other(byColor);
@@ -1006,16 +1021,14 @@
 
     function yourTurn() {
       board.locked = false;
-      botCard.classList.remove('thinking');
-      botState.textContent = 'Waiting for you';
+      showTurn('you');
       if (!pawns && C.inCheck(cur())) talk('Check! Keep your king safe.', 'oops');
-      else talk('Your turn!', '', false);
+      else talk(`Your turn! Move a ${youColour} piece.`, '', false);
     }
 
     function botTurn() {
       board.locked = true;
-      botCard.classList.add('thinking');
-      botState.textContent = 'Thinking…';
+      showTurn('bot');
       talk(`${bot.name} is thinking…`, '', false);
       timer = setTimeout(() => {
         timer = null;
@@ -1031,8 +1044,7 @@
       if (!r) return false;
       over = r;
       board.locked = true;
-      botCard.classList.remove('thinking');
-      botState.textContent = 'Game over';
+      showTurn(null);
       const key = bot.id + (pawns ? '-pawns' : '');
       if (!recorded) {
         recorded = true;
@@ -1129,7 +1141,8 @@
     });
 
     refresh();
-    say(pawns ? 'Pawn Battle! Get one of your pawns to the other side to win.' : `Let's play! Good luck against ${bot.name}.`);
+    const sides = you === 'w' ? `You are White, so you go first.` : `You are Black. White goes first, so ${bot.name} starts.`;
+    say(`${pawns ? 'Pawn Battle! Get one of your pawns to the other side to win.' : `Let's play! Good luck against ${bot.name}.`} ${sides}`);
     if (cur().turn === you) yourTurn(); else botTurn();
     cleanup = () => {
       if (timer) clearTimeout(timer);
