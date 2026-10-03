@@ -168,12 +168,30 @@
     return out;
   }
 
-  // Robot personalities. `noise` adds random centipawns per move so they make human-like slips.
+  // Best move only, with the alpha-beta window narrowed at the root too, so a deeper search stays quick.
+  function bestMove(pos, depth, opts) {
+    opts = opts || {};
+    const ctx = { nodes: 0, quiesce: opts.quiesce !== false, seen: new Set(opts.history || []) };
+    let alpha = -MATE - 1, best = null;
+    for (const m of orderMoves(C.legalMoves(pos))) {
+      if (m.promo && m.promo !== 'Q') continue;
+      const score = -negamax(C.makeMove(pos, m), depth - 1, -MATE - 1, -alpha, 1, ctx);
+      if (score > alpha || !best) { alpha = Math.max(alpha, score); best = m; }
+    }
+    return best;
+  }
+
+  // Robot personalities, weakest first. `noise` adds random centipawns per move, and `slip` is the
+  // chance of a careless random move, so the in-between robots make human-like mistakes.
   const BOTS = [
     { id: 'chick', name: 'Chick', emoji: '🐣', blurb: 'Just learning. Moves almost at random.', depth: 0, noise: 0, stars: 1 },
+    { id: 'mouse', name: 'Mouse', emoji: '🐭', blurb: 'Nibbles free pieces, but often forgets to look.', depth: 1, noise: 80, slip: 0.45, quiesce: false, stars: 2 },
     { id: 'turtle', name: 'Turtle', emoji: '🐢', blurb: 'Grabs anything it can. Watch for traps!', depth: 1, noise: 60, quiesce: false, stars: 3 },
+    { id: 'puppy', name: 'Puppy', emoji: '🐶', blurb: 'Looks ahead a little, but gets too excited.', depth: 2, noise: 70, slip: 0.15, stars: 4 },
     { id: 'fox', name: 'Fox', emoji: '🦊', blurb: 'Sneaky. Thinks one move ahead.', depth: 2, noise: 40, stars: 5 },
+    { id: 'bear', name: 'Bear', emoji: '🐻', blurb: 'Strong and steady, but a bit sleepy.', depth: 3, noise: 35, slip: 0.06, stars: 6 },
     { id: 'owl', name: 'Owl', emoji: '🦉', blurb: 'Wise and careful. A real challenge!', depth: 3, noise: 12, stars: 8 },
+    { id: 'dragon', name: 'Dragon', emoji: '🐲', blurb: 'The champion. Thinks far ahead!', depth: 4, noise: 0, stars: 12 },
   ];
 
   function pick(list, rnd) { return list[Math.floor(rnd() * list.length)]; }
@@ -192,8 +210,14 @@
       const nonPromoOrQueen = moves.filter((m) => !m.promo || m.promo === 'Q');
       return pick(nonPromoOrQueen, rnd);
     }
+    // A slip: a random move, but never one that throws away a mate it can see.
+    if (bot.slip && rnd() < bot.slip) {
+      const quick = scoreMoves(pos, 1, { quiesce: false, history: opts.history });
+      if (quick[0].score < MATE / 2) return pick(moves.filter((m) => !m.promo || m.promo === 'Q'), rnd);
+    }
     // Pawn Battle positions are simple, so search deeper there.
     const depth = pos.variant === 'pawns' ? bot.depth + 2 : bot.depth;
+    if (!bot.noise) return bestMove(pos, depth, { quiesce: bot.quiesce !== false, history: opts.history }) || moves[0];
     const scored = scoreMoves(pos, depth, { quiesce: bot.quiesce !== false, history: opts.history });
     let best = null, bestScore = -Infinity;
     for (const s of scored) {
@@ -226,7 +250,7 @@
     return scored.length ? scored[0].move : null;
   }
 
-  const api = { BOTS, LABELS, botMove, hintMove, analyseMove, scoreMoves, evaluate, variantResult, MATE };
+  const api = { BOTS, LABELS, botMove, bestMove, hintMove, analyseMove, scoreMoves, evaluate, variantResult, MATE };
   root.ChessAI = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
