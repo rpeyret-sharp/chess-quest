@@ -91,7 +91,8 @@ h1, h2, h3 { font-family: var(--font-display); line-height: 1.1; margin: 0; text
 /* ---------- Home ---------- */
 .home-top { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .hello { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 260px; }
-.hello .pip { width: 84px; height: 90px; flex: none; }
+.me { display: block; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px #fff, 0 5px 0 3px #C9D6E2; -webkit-user-drag: none; }
+.hello .me { width: 84px; height: 84px; flex: none; }
 .hello h1 { font-size: clamp(34px, 5vw, 52px); }
 .hello p { margin: 2px 0 0; color: var(--ink-soft); font-weight: 700; font-size: 20px; }
 .pills { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -247,6 +248,7 @@ h1, h2, h3 { font-family: var(--font-display); line-height: 1.1; margin: 0; text
 /* ---------- Play ---------- */
 .player { display: flex; align-items: center; gap: 12px; background: var(--paper); border-radius: 18px; padding: 10px 14px; box-shadow: 0 5px 0 #C9D6E2; }
 .player .face { font-size: 42px; line-height: 1; }
+.player .me { width: 48px; height: 48px; box-shadow: 0 0 0 2px #EAF1F7; }
 .player .who { flex: 1; min-width: 0; }
 .player b { font-family: var(--font-display); font-size: 24px; display: block; line-height: 1.1; }
 .player small { font-weight: 800; color: var(--ink-soft); font-size: 15px; }
@@ -286,6 +288,7 @@ h1, h2, h3 { font-family: var(--font-display); line-height: 1.1; margin: 0; text
 .overlay h2 { font-size: 40px; }
 .overlay p { margin: 0; font-weight: 700; font-size: 20px; color: var(--ink-soft); }
 .overlay .pip { width: 96px; height: 104px; animation: hop 0.9s ease-in-out infinite; }
+.overlay .me { width: 124px; height: 124px; animation: hop 0.9s ease-in-out infinite; }
 @keyframes hop { 50% { transform: translateY(-10px); } }
 .overlay .big-stars { font-size: 54px; letter-spacing: 6px; color: var(--sun); line-height: 1; }
 .overlay .big-stars .off { color: #DCE4EC; }

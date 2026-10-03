@@ -126,6 +126,9 @@
     '<circle cx="25" cy="26" r="2.8" fill="#22314A"/><circle cx="35" cy="26" r="2.8" fill="#22314A"/><circle cx="26" cy="25" r=".9" fill="#fff"/><circle cx="36" cy="25" r=".9" fill="#fff"/>' +
     '<ellipse cx="21" cy="31.5" rx="2.6" ry="1.6" fill="#FF9AA2"/><ellipse cx="39" cy="31.5" rx="2.6" ry="1.6" fill="#FF9AA2"/>' +
     '<path d="M26.5 31.5q3.5 3.2 7 0" stroke="#22314A" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>';
+  // Her own princess portrait (img/me-*.webp): face for small spots, smile for home, happy for wins.
+  const ME_SRC = { face: 'img/me-face.webp', smile: 'img/me-smile.webp', happy: 'img/me-happy.webp' };
+  const ME = (kind) => `<img class="me" src="${ME_SRC[kind]}" alt="" draggable="false">`;
   const BACK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4l-8 8 8 8" fill="none" stroke="#22314A" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const STAR = '★';
   const HOW = {
@@ -280,7 +283,7 @@
     const openThemes = P.THEMES.filter((_, i) => themeUnlocked(i)).length;
     const el = show(`
       <header class="home-top">
-        <div class="hello">${PIP}<div><h1>${name}</h1><p>Let’s play chess!</p></div></div>
+        <div class="hello">${ME('smile')}<div><h1>${name}</h1><p>Let’s play chess!</p></div></div>
         <div class="pills">
           <span class="pill" title="Stars"><span class="s">${STAR}</span><span class="star-count">${S.stars}</span></span>
           <span class="pill" title="Days in a row">🔥 ${streak}</span>
@@ -400,7 +403,7 @@
       if (last) {
         Sound.win();
         confetti(180);
-        const o = overlay(`${PIP}<h2>Lesson complete!</h2><div class="big-stars">${starsRow(stars)}</div><p>You finished “${lesson.title}”.</p>
+        const o = overlay(`${ME('happy')}<h2>Lesson complete!</h2><div class="big-stars">${starsRow(stars)}</div><p>You finished “${lesson.title}”.</p>
           <div class="row"><button class="btn ghost" type="button" data-act="again">Play again</button><button class="btn green" type="button" data-act="more">More lessons</button></div>`, (act) => {
           o.remove();
           if (act === 'again') screenLesson(id, 0); else screenLearn();
@@ -796,7 +799,7 @@
     addStars(5);
     Sound.win();
     confetti(200);
-    const o = overlay(`${PIP}<h2>Challenge complete!</h2><div class="big-stars">${STAR}${STAR}${STAR}${STAR}${STAR}</div>
+    const o = overlay(`${ME('happy')}<h2>Challenge complete!</h2><div class="big-stars">${STAR}${STAR}${STAR}${STAR}${STAR}</div>
       <p>Bonus: +5 stars! 🔥 ${S.streak.count} day${S.streak.count === 1 ? '' : 's'} in a row.</p>
       <div class="row"><button class="btn green" type="button" data-act="home">Yay!</button></div>`, () => { o.remove(); screenHome(); });
     say(`Challenge complete! You get 5 bonus stars! ${praise()}`);
@@ -960,7 +963,7 @@
         </section>
         <section class="board-wrap"><div class="board-frame"><div id="board"></div></div></section>
         <section class="actions">
-          <div class="player" id="youcard"><span class="face">${PIP.replace('class="pip"', 'class="pip" style="width:44px;height:48px"')}</span><span class="who"><b>${youName}</b><small class="state"></small></span>${sideChip(you)}</div>
+          <div class="player" id="youcard"><span class="face">${ME('face')}</span><span class="who"><b>${youName}</b><small class="state"></small></span>${sideChip(you)}</div>
           <div class="caps" id="youcaps"></div>
           <button class="btn blue" type="button" data-act="undo"><span class="ico">↶</span> Oops! Undo</button>
           <button class="btn sun" type="button" data-act="hint"></button>
@@ -1064,7 +1067,7 @@
         stars = Math.max(1, (pawns ? Math.max(1, bot.stars - 1) : bot.stars) - gameHints.used);
         const why = pawns ? 'Your pawns won the race!' : 'Checkmate! The king cannot escape.';
         const hintNote = gameHints.used ? `<p>${gameHints.used} hint${gameHints.used === 1 ? '' : 's'} used: −${gameHints.used} ${STAR}</p>` : '';
-        html = `${PIP}<h2>You won!</h2><p>${why}</p><div class="big-stars">+${stars} ${STAR}</div>${hintNote}`;
+        html = `${ME('happy')}<h2>You won!</h2><p>${why}</p><div class="big-stars">+${stars} ${STAR}</div>${hintNote}`;
         Sound.win();
         confetti(220);
         say(`You won! ${why}`);
