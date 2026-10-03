@@ -6,6 +6,8 @@ A chess learning app for a young beginner, built for the iPad. No accounts, no a
 
 - **Learn**: 12 short lessons. How each piece moves (collect the stars), capturing, free pieces, check, escaping check, checkmate and castling. Each stage earns 1 to 3 stars.
 - **Puzzles**: 8 puzzle types that open one after another (solve 3 to open the next): Free Snacks (capture an unguarded piece), Check!, Save the King, Queen Checkmate, Rook Checkmate, Knight Fork, Checkmate Mix and Mate in 2. Each type gets harder over 3 levels as she solves more. Puzzles are generated from a seed and checked by the chess engine, so the supply never runs out and every answer is correct.
+- **Mix it up**: endless puzzles that switch to a different open puzzle type every time. Each one still counts toward its own type's level.
+- **Level bars**: each puzzle type shows a progress bar toward its next level (5 solved for level 2, 15 for level 3), with a "Level up!" message when she gets there.
 - **Today's Challenge**: 5 puzzles a day from the types she has opened, with a bonus and a day streak.
 - **Hints cost stars**: a puzzle is worth 2 stars and each hint (2 at most: first the piece, then the move) costs 1. In lessons each hint or mistake takes one star off (minimum 1). In games, up to 3 hints, each taking a star off a win. Every hint has a wait before it unlocks (20 seconds by default, adjustable under Grown-ups) so hints cannot be tapped straight away.
 - **Replay and My puzzles**: every puzzle has Start over and Play it again buttons, and **My puzzles** (on the Puzzles screen) lists every puzzle she has seen, with filters for unsolved ones and by type. Replays are practice and earn no stars, unless the puzzle was never solved.

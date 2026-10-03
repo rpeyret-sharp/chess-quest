@@ -174,7 +174,7 @@
 
   function stageHTML(title, right) {
     return `${topbar(title, right)}<main class="stage">` +
-      `<section class="talk">${talkHTML()}<div class="counter" id="counter"></div><p class="pid" id="pid"></p></section>` +
+      `<section class="talk">${talkHTML()}<div class="counter" id="counter"></div><div class="lvl" id="lvl"></div><p class="pid" id="pid"></p></section>` +
       `<section class="board-wrap"><div class="board-frame"><div id="board"></div></div></section>` +
       `<section class="actions" id="actions"></section></main>`;
   }
@@ -237,7 +237,21 @@
   const themeRec = (id) => (S.themes[id] = S.themes[id] || { solved: 0, next: 0 });
   const UNLOCK_AFTER = 3;
   const themeUnlocked = (i) => S.settings.unlockAll || i === 0 || themeRec(P.THEMES[i - 1].id).solved >= UNLOCK_AFTER;
-  const themeLevel = (id) => { const n = themeRec(id).solved; return n < 5 ? 1 : n < 15 ? 2 : 3; };
+  // Solved puzzles needed to reach level 2 and level 3 of a puzzle type.
+  const LEVEL_AT = [0, 5, 15];
+  const themeLevel = (id) => { const n = themeRec(id).solved; return n < LEVEL_AT[1] ? 1 : n < LEVEL_AT[2] ? 2 : 3; };
+  function levelProgress(id) {
+    const n = themeRec(id).solved, level = themeLevel(id);
+    if (level === 3) return { level, top: true, done: n };
+    const from = LEVEL_AT[level - 1], to = LEVEL_AT[level];
+    return { level, top: false, done: n - from, need: to - from };
+  }
+  function levelBar(id) {
+    const p = levelProgress(id);
+    const pct = p.top ? 100 : Math.round((p.done / p.need) * 100);
+    const text = p.top ? `Top level! ${p.done} solved` : `${p.done} of ${p.need} to level ${p.level + 1}`;
+    return `<span class="lvl-row"><span class="lvl-tag">Level ${p.level}</span><span class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></span></span><small class="lvl-text">${text}</small>`;
+  }
   const themeSeed = (id, n) => (P.THEMES.findIndex((t) => t.id === id) + 1) * 100000 + n;
 
   function ensureDaily() {
@@ -568,18 +582,39 @@
     const seen = (S.history || []).length;
     const el = show(`${topbar('Puzzles', seen ? `<button class="btn ghost small" type="button" data-act="history">📒 My puzzles</button>` : '')}
       <p class="lead">Solve ${UNLOCK_AFTER} puzzles of one kind to open the next kind. Each puzzle is worth ${PUZZLE_STARS} ${STAR}, and each hint costs 1.</p>
-      <div class="grid">${P.THEMES.map((t, i) => {
-        const open = themeUnlocked(i), rec = themeRec(t.id);
+      <div class="grid">${mixCard()}${P.THEMES.map((t, i) => {
+        const open = themeUnlocked(i);
         if (!open) return `<div class="card locked"><span class="lock">🔒</span><span class="emo">${t.icon}</span><h3>${t.title}</h3><p>Solve ${UNLOCK_AFTER} “${P.THEMES[i - 1].title}” puzzles to open.</p></div>`;
-        return `<button class="card" type="button" data-id="${t.id}"><span class="num">Level ${themeLevel(t.id)}</span><span class="emo">${t.icon}</span><h3>${t.title}</h3><p>${t.about}</p>
-          <div class="meta">✅ ${rec.solved} solved</div></button>`;
+        return `<button class="card" type="button" data-id="${t.id}"><span class="emo">${t.icon}</span><h3>${t.title}</h3><p>${t.about}</p>
+          <div class="meta lvl">${levelBar(t.id)}</div></button>`;
       }).join('')}</div>`, screenHome);
     el.addEventListener('click', (e) => {
-      const b = e.target.closest('[data-id],[data-act="history"]');
+      const b = e.target.closest('[data-id],[data-act="history"],[data-act="mix"]');
       if (!b) return;
       if (b.dataset.act === 'history') screenHistory();
+      else if (b.dataset.act === 'mix') screenMix();
       else screenTheme(b.dataset.id);
     });
+  }
+
+  const openThemes = () => P.THEMES.filter((_, i) => themeUnlocked(i));
+  function mixCard() {
+    const open = openThemes();
+    if (open.length < 2) {
+      return `<div class="card locked mix"><span class="lock">🔒</span><span class="emo">🎲</span><h3>Mix it up</h3><p>Open a second puzzle type to mix them.</p></div>`;
+    }
+    return `<button class="card mix" type="button" data-act="mix"><span class="emo">🎲</span><h3>Mix it up</h3>
+      <p>A different kind of puzzle every time: ${open.map((t) => t.icon).join(' ')}</p></button>`;
+  }
+
+  // Mixed practice: a different open puzzle type each time (never the same twice in a row).
+  // Each puzzle still counts toward its own type's level.
+  function screenMix(lastTheme, streak) {
+    const open = openThemes();
+    const choices = open.length > 1 ? open.filter((t) => t.id !== lastTheme) : open;
+    const t = choices[Math.floor(Math.random() * choices.length)];
+    const rec = themeRec(t.id);
+    screenPuzzle(P.makePuzzle(t.id, themeLevel(t.id), themeSeed(t.id, rec.next)), { kind: 'mix', streak: streak || 0 });
   }
 
   function screenTheme(themeId) {
@@ -614,6 +649,10 @@
       title = `${theme.icon} Replay`;
       right = level;
       back = screenHistory;
+    } else if (mode.kind === 'mix') {
+      title = '🎲 Mix it up';
+      right = level;
+      back = screenPuzzles;
     } else {
       title = `${theme.icon} ${theme.title}`;
       right = level;
@@ -626,9 +665,11 @@
     let earned = null;
     const info = () => {
       const where = mode.kind === 'daily' ? `<span>Puzzle ${mode.index + 1} of 5</span><span>${theme.icon} ${theme.title}</span>`
+        : mode.kind === 'mix' ? `<span>${theme.icon} ${theme.title}</span>${mode.streak ? `<span>🎲 ${mode.streak} in this mix</span>` : ''}`
         : mode.kind === 'replay' ? `<span>${hist.solved ? '✅ Solved before' : 'Not solved yet'}</span>` : `<span>✅ Solved: ${rec.solved}</span>`;
       const value = earned != null ? `<span>Earned: ${earned} ${STAR}</span>` : firstSolve ? `<span>Worth: ${worth()} ${STAR}</span>` : '<span>Practice: no stars</span>';
       counter.innerHTML = where + value;
+      if (mode.kind !== 'replay') $('#lvl', el).innerHTML = levelBar(puzzle.themeId);
     };
     info();
     setPid(el, `Puzzle ID: ${puzzle.id}`);
@@ -647,7 +688,8 @@
         logPuzzle(puzzle, { solved: true, stars: Math.max(hist.stars || 0, stars), hints: carry.hints, solvedOn: today() });
         if (firstSolve) S.puzzlesSolved++;
         let unlocked = null;
-        if (mode.kind === 'theme') {
+        const levelBefore = themeLevel(puzzle.themeId);
+        if (mode.kind === 'theme' || mode.kind === 'mix') {
           const idx = P.THEMES.findIndex((t) => t.id === puzzle.themeId);
           const wasOpen = themeUnlocked(idx + 1);
           if (firstSolve) rec.solved++;
@@ -658,6 +700,8 @@
           S.daily.done++;
           if (firstSolve) rec.solved++;
         }
+        if (mode.kind === 'mix') mode.streak++;
+        const levelUp = themeLevel(puzzle.themeId) > levelBefore;
         save();
         addStars(stars);
         if (mode.kind === 'daily' && S.daily.done >= 5) return dailyComplete();
@@ -666,11 +710,14 @@
         const note = stars ? `+${stars} ${STAR}` : !firstSolve ? 'That was practice, so no stars.' : 'No stars this time because of the hints. Try the next one on your own!';
         talk(`${praise()} <span class="sub">${note}</span>`, 'good');
         info();
-                actions.innerHTML = (mode.kind === 'replay'
+        actions.innerHTML = (mode.kind === 'replay'
           ? `<button class="btn green" type="button" data-act="list">My puzzles <span class="ico">▶</span></button>`
           : `<button class="btn green" type="button" data-act="next">Next puzzle <span class="ico">▶</span></button>`) +
           `<button class="btn ghost small" type="button" data-act="replay">↺ Play it again</button>`;
-        if (unlocked) setTimeout(() => toast(`<span class="emo">${unlocked.icon}</span> New puzzles: ${unlocked.title}!`), 900);
+        if (levelUp) {
+          setTimeout(() => { toast(`<span class="emo">${theme.icon}</span> Level up! ${theme.title} is now level ${themeLevel(puzzle.themeId)}`); say(`Level up! ${theme.title} is now level ${themeLevel(puzzle.themeId)}!`); }, 900);
+        }
+        if (unlocked) setTimeout(() => toast(`<span class="emo">${unlocked.icon}</span> New puzzles: ${unlocked.title}!`), levelUp ? 4200 : 900);
       },
     });
     hints = hintButton($('[data-act="hint"]', actions), {
@@ -690,9 +737,13 @@
       if (act === 'restart') screenPuzzle(puzzle, mode, carry);
       else if (act === 'replay') screenPuzzle(puzzle, mode.kind === 'replay' ? mode : { kind: 'replay' }, { hints: 0 });
       else if (act === 'list') screenHistory();
-      else if (act === 'next') (mode.kind === 'daily' ? screenDaily : () => screenTheme(puzzle.themeId))();
-      else if (act === 'skip') {
+      else if (act === 'next') {
+        if (mode.kind === 'daily') screenDaily();
+        else if (mode.kind === 'mix') screenMix(puzzle.themeId, mode.streak);
+        else screenTheme(puzzle.themeId);
+      } else if (act === 'skip') {
         if (mode.kind === 'daily') { mode.item.seed += 1000; save(); screenDaily(); }
+        else if (mode.kind === 'mix') { if (themeSeed(puzzle.themeId, rec.next) === puzzle.seed) rec.next++; save(); screenMix(puzzle.themeId, mode.streak); }
         else { if (themeSeed(puzzle.themeId, rec.next) === puzzle.seed) rec.next++; save(); screenTheme(puzzle.themeId); }
       }
     });

@@ -344,3 +344,18 @@ h1, h2, h3 { font-family: var(--font-display); line-height: 1.1; margin: 0; text
 .mini i.l { background-color: var(--sq-light); }
 .mini i.d { background-color: var(--sq-dark); }
 .overlay .panel p + p { margin-top: -6px; }
+
+/* Level progress and mixed puzzles */
+.lvl:empty { display: none; }
+.lvl { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+.lvl-row { display: flex; align-items: center; gap: 10px; width: 100%; }
+.lvl-tag { flex: none; font-weight: 800; font-size: 15px; background: var(--sky-deep); border-radius: 999px; padding: 2px 10px; }
+.lvl .bar { flex: 1; height: 14px; }
+.lvl .bar i { background: linear-gradient(90deg, var(--leaf), #6CC685); transition: width .6s ease-out; }
+.lvl-text { font-weight: 700; font-size: 14px; color: var(--ink-soft); }
+.card .meta.lvl { align-items: stretch; }
+.card.mix { background: var(--plum); color: #fff; box-shadow: 0 6px 0 var(--plum-deep); }
+.card.mix p { color: rgba(255, 255, 255, .9); }
+.card.mix:active { box-shadow: 0 2px 0 var(--plum-deep); }
+.card.mix.locked { background: #EDF3F8; color: var(--ink-soft); box-shadow: 0 6px 0 #D5E1EB; }
+.card.mix.locked p { color: var(--ink-soft); }
