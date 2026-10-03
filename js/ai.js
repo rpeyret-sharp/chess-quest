@@ -170,7 +170,7 @@
 
   // Robot personalities. `noise` adds random centipawns per move so they make human-like slips.
   const BOTS = [
-    { id: 'chick', name: 'Chick', emoji: '🐣', blurb: 'Just learning. Moves almost at random.', depth: 0, noise: 0, stars: 2 },
+    { id: 'chick', name: 'Chick', emoji: '🐣', blurb: 'Just learning. Moves almost at random.', depth: 0, noise: 0, stars: 1 },
     { id: 'turtle', name: 'Turtle', emoji: '🐢', blurb: 'Grabs anything it can. Watch for traps!', depth: 1, noise: 60, quiesce: false, stars: 3 },
     { id: 'fox', name: 'Fox', emoji: '🦊', blurb: 'Sneaky. Thinks one move ahead.', depth: 2, noise: 40, stars: 5 },
     { id: 'owl', name: 'Owl', emoji: '🦉', blurb: 'Wise and careful. A real challenge!', depth: 3, noise: 12, stars: 8 },
