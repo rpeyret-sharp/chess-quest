@@ -359,3 +359,11 @@ h1, h2, h3 { font-family: var(--font-display); line-height: 1.1; margin: 0; text
 .card.mix:active { box-shadow: 0 2px 0 var(--plum-deep); }
 .card.mix.locked { background: #EDF3F8; color: var(--ink-soft); box-shadow: 0 6px 0 #D5E1EB; }
 .card.mix.locked p { color: var(--ink-soft); }
+
+/* Grown-ups check */
+.gate-display { min-width: 160px; min-height: 60px; padding: 8px 18px; border-radius: 14px; border: 3px solid #C9D6E2; font-family: var(--font-display); font-weight: 800; font-size: 40px; line-height: 44px; font-variant-numeric: tabular-nums; }
+.keypad { display: grid; grid-template-columns: repeat(3, 76px); gap: 10px; }
+.keypad button { height: 60px; border: 0; border-radius: 14px; background: var(--sky); box-shadow: 0 4px 0 #C9D6E2; font-family: var(--font-display); font-weight: 800; font-size: 28px; }
+.keypad button:active { transform: translateY(3px); box-shadow: 0 1px 0 #C9D6E2; }
+.keypad button.ok { background: var(--leaf); color: #fff; box-shadow: 0 4px 0 var(--leaf-deep); font-size: 22px; }
+.gate-msg { min-height: 1.4em; color: var(--berry-deep) !important; }

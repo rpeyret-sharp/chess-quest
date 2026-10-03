@@ -308,8 +308,39 @@
       else if (act === 'play') screenPlaySetup();
       else if (act === 'stickers') screenStickers();
     });
-    holdButton($('[data-act="grownups"]', el), screenGrownups);
+    holdButton($('[data-act="grownups"]', el), () => grownupGate(screenGrownups));
     if (!S.welcomed) welcome();
+  }
+
+  // Grown-ups check: a times-table sum a 6-year-old is unlikely to know, typed on a keypad.
+  function grownupGate(onPass) {
+    let a, b, typed = '';
+    const o = overlay(`<h2>Grown-ups only</h2><p id="gq"></p>
+      <div class="gate-display" id="ga" aria-live="polite"></div>
+      <div class="keypad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `<button type="button" data-act="k${n}">${n}</button>`).join('')}
+        <button type="button" data-act="del" aria-label="Delete">⌫</button><button type="button" data-act="k0">0</button><button type="button" data-act="ok" class="ok">OK</button></div>
+      <p class="gate-msg" id="gm"></p>
+      <div class="row"><button class="btn ghost small" type="button" data-act="cancel">Cancel</button></div>`, (act) => {
+      if (act === 'cancel') { o.remove(); return; }
+      if (act !== 'ok') $('#gm', o).textContent = '';
+      if (act === 'del') typed = typed.slice(0, -1);
+      else if (act[0] === 'k' && typed.length < 3) typed += act.slice(1);
+      else if (act === 'ok') {
+        if (+typed === a * b) { o.remove(); onPass(); return; }
+        $('#gm', o).textContent = 'Not quite. Here is another one.';
+        ask();
+        return;
+      }
+      $('#ga', o).textContent = typed;
+    });
+    function ask() {
+      a = 6 + Math.floor(Math.random() * 4);
+      b = 7 + Math.floor(Math.random() * 3);
+      typed = '';
+      $('#gq', o).textContent = `What is ${a} × ${b}?`;
+      $('#ga', o).textContent = '';
+    }
+    ask();
   }
 
   function holdButton(btn, fn) {

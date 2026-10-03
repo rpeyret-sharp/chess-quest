@@ -14,7 +14,7 @@ A chess learning app for a young beginner, built for the iPad. No accounts, no a
 - **Play**: full games or Pawn Battle against four robots: Chick (random), Turtle (greedy), Fox and Owl. There are Undo and Hint buttons, and dots show where a piece can move.
 - **Stickers**: 40 stickers to collect with stars.
 - **Pip the pawn** reads every instruction aloud (tap Pip to hear it again), so she does not need to read fluently.
-- **Grown-ups** (press and hold the link at the bottom of the home screen): name, sound, read-aloud, move dots, open all puzzle types, hint wait time, a progress summary, and a backup code to move progress between devices.
+- **Grown-ups** (press and hold the link at the bottom of the home screen, then answer a times-table question such as 7 × 8): name, sound, read-aloud, move dots, open all puzzle types, hint wait time, a progress summary, and a backup code to move progress between devices.
 
 Wrong moves get a short explanation, such as "That piece is protected", "Check, but the king can escape" or "Stalemate! That's a draw", rather than just a buzzer.
 
