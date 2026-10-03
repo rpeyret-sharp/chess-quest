@@ -18,7 +18,7 @@
     streak: { count: 0, last: '' },
     play: { bot: 'chick', variant: 'chess', side: 'r' },
     history: [],
-    settings: { sound: true, voice: true, overSilent: true, dots: true, unlockAll: false, hintWait: 20 },
+    settings: { sound: true, voice: true, muted: false, overSilent: true, dots: true, unlockAll: false, hintWait: 20 },
   });
   function hydrate(d) {
     const s = Object.assign(DEFAULTS(), d);
@@ -67,7 +67,7 @@
     },
     note(freq, start, dur, type, vol) {
       const c = this.ctx;
-      if (!c || !S.settings.sound) return;
+      if (!c || !S.settings.sound || S.settings.muted) return;
       const t = c.currentTime + start;
       const o = c.createOscillator(), g = c.createGain();
       o.type = type || 'sine';
@@ -168,7 +168,7 @@
 
   function say(text) {
     hush();
-    if (!S.settings.voice || !text) return;
+    if (!S.settings.voice || S.settings.muted || !text) return;
     const parts = V.sentences(text);
     const turn = talking;
     Sound.unlock();
@@ -200,6 +200,16 @@
   // Her own princess portrait (img/me-*.webp): face for small spots, smile for home, happy for wins.
   const ME_SRC = { face: 'img/me-face.webp', smile: 'img/me-smile.webp', happy: 'img/me-happy.webp' };
   const ME = (kind) => `<img class="me" src="${ME_SRC[kind]}" alt="" draggable="false">`;
+  // Mute button on the home screen and every top bar, so she can turn all sound off herself.
+  const MUTE = () => `<button class="round mute" type="button" data-mute aria-pressed="${!!S.settings.muted}" aria-label="${S.settings.muted ? 'Turn sound on' : 'Turn sound off'}">${S.settings.muted ? '🔇' : '🔊'}</button>`;
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-mute]')) return;
+    S.settings.muted = !S.settings.muted;
+    save();
+    hush();
+    Sound.move();
+    document.querySelectorAll('[data-mute]').forEach((b) => { b.outerHTML = MUTE(); });
+  });
   const BACK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4l-8 8 8 8" fill="none" stroke="#22314A" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const STAR = '★';
   const HOW = {
@@ -228,7 +238,7 @@
 
   function topbar(title, right) {
     return `<header class="topbar"><button class="round" type="button" data-act="back" aria-label="Back">${BACK}</button>` +
-      `<h2>${title}</h2>${right || ''}<span class="pill" aria-label="Stars"><span class="s">${STAR}</span><span class="star-count">${S.stars}</span></span></header>`;
+      `<h2>${title}</h2>${right || ''}${MUTE()}<span class="pill" aria-label="Stars"><span class="s">${STAR}</span><span class="star-count">${S.stars}</span></span></header>`;
   }
 
   function talkHTML() {
@@ -358,6 +368,7 @@
         <div class="pills">
           <span class="pill" title="Stars"><span class="s">${STAR}</span><span class="star-count">${S.stars}</span></span>
           <span class="pill" title="Days in a row">🔥 ${streak}</span>
+          ${MUTE()}
         </div>
       </header>
       <button class="daily ${dailyDone ? 'done' : ''}" type="button" data-act="daily">

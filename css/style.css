@@ -76,6 +76,8 @@ h1, h2, h3 { font-family: var(--font-display); line-height: 1.1; margin: 0; text
 }
 .round:active { transform: translateY(3px); box-shadow: 0 2px 0 #C9D6E2; }
 .round svg { width: 28px; height: 28px; }
+.round.mute { width: 48px; height: 48px; font-size: 24px; }
+.round.mute[aria-pressed="true"] { background: #EAF1F7; }
 
 /* ---------- Top bar ---------- */
 .topbar { display: flex; align-items: center; gap: 14px; min-height: 60px; }
