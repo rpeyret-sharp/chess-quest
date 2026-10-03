@@ -188,7 +188,8 @@
     if (!sane(pos) || C.inCheck(pos, 'w')) return null;
     const moves = C.legalMoves(pos);
     const checks = moves.filter((m) => C.givesCheck(pos, m));
-    if (level === 1) return checks.length >= 1 && checks.length <= 3 ? pos : null;
+    // Level 1: every check on the board is safe, so the first idea a beginner finds is a good one.
+    if (level === 1) return checks.length >= 1 && checks.length <= 3 && checks.every((m) => isSafeCheck(pos, m)) ? pos : null;
     const safe = checks.filter((m) => isSafeCheck(pos, m));
     if (safe.length < 1 || safe.length > (level === 2 ? 2 : 1)) return null;
     if (checks.length - safe.length < 1) return null;
@@ -314,6 +315,15 @@
   ];
   const THEME = Object.fromEntries(THEMES.map((t) => [t.id, t]));
 
+  // Bump VERSION whenever a generator changes, because the same seed then makes a different puzzle.
+  // An ID such as "check-2-200005-v3" always names one exact puzzle (see scripts/show-puzzle.js).
+  const VERSION = 3;
+  const puzzleId = (themeId, level, seed) => `${themeId}-${level}-${seed}-v${VERSION}`;
+  function parseId(id) {
+    const m = /^([A-Za-z0-9]+)-(\d)-(\d+)(?:-v(\d+))?$/.exec(String(id).trim());
+    return m ? { themeId: m[1], level: +m[2], seed: +m[3], version: m[4] ? +m[4] : null } : null;
+  }
+
   function makePuzzle(themeId, level, seed) {
     const theme = THEME[themeId];
     const goal = typeof theme.goal === 'function' ? theme.goal(level) : theme.goal;
@@ -322,7 +332,7 @@
       for (let i = 0; i < 4000; i++) {
         const pos = theme.gen(rnd, level);
         if (pos) {
-          return { themeId, level, seed, goal, fen: C.toFEN(pos), prompt: GOALS[goal].prompt, solutions: solutionsFor(pos, goal) };
+          return { id: puzzleId(themeId, level, seed), themeId, level, seed, goal, fen: C.toFEN(pos), prompt: GOALS[goal].prompt, solutions: solutionsFor(pos, goal) };
         }
       }
     }
@@ -342,7 +352,7 @@
     return best;
   }
 
-  const api = { THEMES, THEME, GOALS, makePuzzle, solutionsFor, defenceFor, isMate, isFreeCapture, isWinningTrade, mulberry32 };
+  const api = { VERSION, THEMES, THEME, GOALS, puzzleId, parseId, makePuzzle, solutionsFor, defenceFor, isMate, isFreeCapture, isWinningTrade, mulberry32 };
   root.Puzzles = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

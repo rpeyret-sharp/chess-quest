@@ -30,6 +30,14 @@ Progress is saved in the iPad's browser storage. Use the backup code under Grown
 
 **Option 2: same Wi-Fi.** Run `npm start` on the Mac, find the Mac's IP address (System Settings > Wi-Fi > Details), and open `http://<that-ip>:8765` on the iPad. The Mac has to be on, and offline mode is not available this way.
 
+## Reporting a problem puzzle
+
+Every puzzle shows a small **Puzzle ID** under the board, such as `check-2-200005-v3` (theme, level, number, puzzle version). Lesson stages show a Lesson ID. To see that exact puzzle with the moves the app accepts:
+
+```bash
+node scripts/show-puzzle.js check-2-200005-v3
+```
+
 ## Development
 
 ```bash

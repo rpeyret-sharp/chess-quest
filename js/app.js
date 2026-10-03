@@ -173,10 +173,13 @@
 
   function stageHTML(title, right) {
     return `${topbar(title, right)}<main class="stage">` +
-      `<section class="talk">${talkHTML()}<div class="counter" id="counter"></div></section>` +
+      `<section class="talk">${talkHTML()}<div class="counter" id="counter"></div><p class="pid" id="pid"></p></section>` +
       `<section class="board-wrap"><div class="board-frame"><div id="board"></div></div></section>` +
       `<section class="actions" id="actions"></section></main>`;
   }
+
+  // Small reference shown under each exercise so a grown-up can report a problem puzzle.
+  function setPid(el, text) { $('#pid', el).textContent = text; }
 
   function overlay(html, onAct) {
     const el = document.createElement('div');
@@ -338,6 +341,7 @@
     const talk = makeTalk(el);
     const counter = $('#counter', el), actions = $('#actions', el);
     const intro = idx === 0 ? lesson.intro + ' ' : '';
+    setPid(el, stage.puzzle ? `Puzzle ID: ${stage.puzzle.id} (lesson ${id} ${idx + 1})` : `Lesson ID: ${id}-${idx + 1}`);
     talk(intro + (stage.say || ''));
 
     const finish = (stars) => {
@@ -533,6 +537,7 @@
     const talk = makeTalk(el);
     const counter = $('#counter', el), actions = $('#actions', el);
     counter.innerHTML = `<span>✅ Solved: ${rec.solved}</span>`;
+    setPid(el, `Puzzle ID: ${puzzle.id}`);
     actions.innerHTML = `<button class="btn sun" type="button" data-act="hint"><span class="ico">💡</span> Hint</button><button class="btn ghost small" type="button" data-act="skip">New puzzle ➜</button>`;
     const runner = puzzleRunner($('#board', el), puzzle, {
       talk,
@@ -577,6 +582,7 @@
     const talk = makeTalk(el);
     const counter = $('#counter', el), actions = $('#actions', el);
     counter.innerHTML = `<span>Puzzle ${i + 1} of 5</span><span>${theme.icon} ${theme.title}</span>`;
+    setPid(el, `Puzzle ID: ${puzzle.id}`);
     actions.innerHTML = `<button class="btn sun" type="button" data-act="hint"><span class="ico">💡</span> Hint</button><button class="btn ghost small" type="button" data-act="swap">Different puzzle ➜</button>`;
     const runner = puzzleRunner($('#board', el), puzzle, {
       talk,

@@ -322,3 +322,6 @@ h1, h2, h3 { font-family: var(--font-display); line-height: 1.1; margin: 0; text
 .daily .big { flex: none; }
 .daily > span:nth-child(2) { flex: 1; min-width: 0; }
 @media (max-width: 560px) { .daily .dots { flex-basis: 100%; } }
+
+.pid { margin: 0; font-size: 13px; font-weight: 700; color: var(--ink-soft); opacity: .8; -webkit-user-select: text; user-select: text; font-variant-numeric: tabular-nums; }
+@media (max-aspect-ratio: 1/1), (max-width: 760px) { .stage .talk { gap: 10px; } }
