@@ -325,3 +325,22 @@ h1, h2, h3 { font-family: var(--font-display); line-height: 1.1; margin: 0; text
 
 .pid { margin: 0; font-size: 13px; font-weight: 700; color: var(--ink-soft); opacity: .8; -webkit-user-select: text; user-select: text; font-variant-numeric: tabular-nums; }
 @media (max-aspect-ratio: 1/1), (max-width: 760px) { .stage .talk { gap: 10px; } }
+
+/* Hints, puzzle history */
+.btn .cost { font-size: .7em; opacity: .8; font-weight: 800; }
+.sw-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-weight: 800; }
+.toggle.small button { min-height: 40px; padding: 0 12px; font-size: 17px; }
+.history { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.hcard { display: flex; gap: 14px; align-items: center; text-align: left; padding: 12px; border: 0; border-radius: 18px; background: var(--paper); box-shadow: 0 5px 0 #C9D6E2; min-width: 0; }
+.hcard:active { transform: translateY(3px); box-shadow: 0 2px 0 #C9D6E2; }
+.hinfo { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.hinfo b { font-family: var(--font-display); font-size: 20px; line-height: 1.1; }
+.hinfo small { font-weight: 700; color: var(--ink-soft); font-size: 15px; }
+.hinfo .pid { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hstat { font-weight: 800; font-size: 15px; }
+.hstat .stars-row { font-size: 17px; }
+.mini { flex: none; width: 104px; height: 104px; display: grid; grid-template-columns: repeat(8, 1fr); border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 3px var(--ink); }
+.mini i { display: block; background-size: 92%; background-position: center; background-repeat: no-repeat; }
+.mini i.l { background-color: var(--sq-light); }
+.mini i.d { background-color: var(--sq-dark); }
+.overlay .panel p + p { margin-top: -6px; }

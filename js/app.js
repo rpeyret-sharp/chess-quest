@@ -17,7 +17,8 @@
     daily: { date: '', list: [], done: 0 },
     streak: { count: 0, last: '' },
     play: { bot: 'chick', variant: 'chess', color: 'w' },
-    settings: { sound: true, voice: true, dots: true, unlockAll: false },
+    history: [],
+    settings: { sound: true, voice: true, dots: true, unlockAll: false, hintWait: 20 },
   });
   function hydrate(d) {
     const s = Object.assign(DEFAULTS(), d);
@@ -373,7 +374,6 @@
       if (!b) return;
       if (b.dataset.act === 'next') screenLesson(id, idx + 1);
       else if (b.dataset.act === 'retry') screenLesson(id, idx);
-      else if (b.dataset.act === 'hint' && runner) runner.hint();
     });
 
     if (stage.kind === 'stars' || stage.kind === 'capture') {
@@ -400,11 +400,14 @@
       });
       board.set(pos, { stars: remaining });
     } else if (stage.kind === 'puzzle') {
-      actions.innerHTML = `<button class="btn sun" type="button" data-act="hint"><span class="ico">💡</span> Hint</button>`;
+      // Stars: 3, minus one per mistake and per hint, never below 1.
+      let hintsUsed = 0;
+      actions.innerHTML = `<button class="btn sun" type="button" data-act="hint"></button>`;
       runner = puzzleRunner($('#board', el), stage.puzzle, {
         talk,
-        solved(mistakes) { finish(mistakes === 0 ? 3 : mistakes === 1 ? 2 : 1); },
+        solved(mistakes) { lessonHints.stop(); finish(Math.max(1, 3 - mistakes - hintsUsed)); },
       });
+      const lessonHints = hintButton($('[data-act="hint"]', actions), { onUse(n) { hintsUsed = n; runner.hint(n); } });
       board = runner.board;
       talk(intro + stage.say);
     } else {
@@ -443,10 +446,37 @@
   }
 
   // ================================================================ PUZZLES
+  const PUZZLE_STARS = 2;   // a puzzle solved without hints; each hint takes one away
+  const MAX_HINTS = 2;      // 1: highlight the piece, 2: show the move
+
+  // Hint button with a wait before each hint. The wait (Grown-ups setting) stops hint-tapping.
+  function hintButton(btn, opts) {
+    let used = opts.used || 0, readyAt = 0;
+    const max = opts.max == null ? MAX_HINTS : opts.max;
+    const cost = opts.cost !== false;
+    const tick = () => {
+      if (!btn.isConnected) { clearInterval(iv); return; }
+      const left = Math.ceil((readyAt - Date.now()) / 1000);
+      if (used >= max) { btn.disabled = true; btn.innerHTML = '<span class="ico">💡</span> No hints left'; }
+      else if (left > 0) { btn.disabled = true; btn.innerHTML = `<span class="ico">⏳</span> Hint in ${left}s`; }
+      else { btn.disabled = false; btn.innerHTML = `<span class="ico">💡</span> Hint${cost ? ' <small class="cost">−1 ★</small>' : ''}`; }
+    };
+    const wait = () => { readyAt = Date.now() + (S.settings.hintWait || 0) * 1000; tick(); };
+    const iv = setInterval(tick, 400);
+    btn.addEventListener('click', () => {
+      if (btn.disabled || used >= max) return;
+      if (opts.onUse(used + 1) === false) return; // not a good moment (e.g. robot's turn): no charge
+      used++;
+      wait();
+    });
+    wait();
+    return { get used() { return used; }, stop() { clearInterval(iv); } };
+  }
+
   function puzzleRunner(boardEl, puzzle, hooks) {
     const goal = P.GOALS[puzzle.goal];
     const start = C.parseFEN(puzzle.fen);
-    let pos = start, step = 0, mistakes = 0, hintLevel = 0, done = false, timer = null;
+    let pos = start, step = 0, mistakes = 0, done = false, timer = null;
     const board = new window.Board(boardEl, { showDots: S.settings.dots, movable: () => 'w', onMove, onIllegal });
     board.set(pos, { check: checkSq(pos) });
     hooks.talk(puzzle.prompt);
@@ -461,7 +491,6 @@
         board.shake(m.from);
         Sound.bad();
         hooks.talk(step === 0 ? goal.wrong(pos, m) : 'That is not checkmate yet. Try again!', 'oops');
-        if (mistakes >= 2 && hintLevel === 0) hint();
         return;
       }
       const next = C.makeMove(pos, m);
@@ -470,7 +499,6 @@
       pos = next;
       if (puzzle.goal === 'mate2' && step === 0 && !P.isMate(start, m)) {
         step = 1;
-        hintLevel = 0;
         board.locked = true;
         hooks.talk('Great first move! Now watch Black…', 'good', false);
         timer = setTimeout(() => {
@@ -486,7 +514,7 @@
       }
       done = true;
       board.locked = true;
-      setTimeout(() => hooks.solved(mistakes, hintLevel), 250);
+      setTimeout(() => hooks.solved(mistakes), 250);
     }
 
     function onIllegal(from, to, why) {
@@ -499,11 +527,11 @@
       } else hooks.talk(HOW[pos.board[from][1]], 'oops');
     }
 
-    function hint() {
+    // n = 1: highlight the piece to move. n = 2: show the whole move.
+    function hint(n) {
       const sols = solutions();
       if (!sols.length || done) return;
-      hintLevel++;
-      if (hintLevel === 1) {
+      if (n === 1) {
         board.setMarks({ hint: [...new Set(sols.map((m) => m.from))], arrows: [] });
         hooks.talk('Here is a clue: move this piece.');
       } else {
@@ -515,59 +543,49 @@
     return { board, hint, destroy() { clearTimeout(timer); } };
   }
 
+  // ---- puzzle history: every puzzle she has seen, so she can replay it
+  const historyOf = (id) => (S.history || []).find((h) => h.id === id);
+  function logPuzzle(pz, patch) {
+    S.history = S.history || [];
+    let h = historyOf(pz.id);
+    if (!h) {
+      h = { id: pz.id, theme: pz.themeId, level: pz.level, seed: pz.seed, goal: pz.goal, fen: pz.fen, date: today(), solved: false, stars: 0, hints: 0 };
+      S.history.unshift(h);
+      if (S.history.length > 300) S.history.length = 300;
+    }
+    Object.assign(h, patch || {});
+    save();
+    return h;
+  }
+  // Rebuild from the saved position, so a replay is exact even after puzzle generators change.
+  function puzzleFromHistory(h) {
+    const pos = C.parseFEN(h.fen);
+    return { id: h.id, themeId: h.theme, level: h.level, seed: h.seed, goal: h.goal, fen: h.fen, prompt: P.GOALS[h.goal].prompt, solutions: P.solutionsFor(pos, h.goal) };
+  }
+
   function screenPuzzles() {
     ensureDaily();
-    const el = show(`${topbar('Puzzles')}
-      <p class="lead">Solve ${UNLOCK_AFTER} puzzles of one kind to open the next kind.</p>
+    const seen = (S.history || []).length;
+    const el = show(`${topbar('Puzzles', seen ? `<button class="btn ghost small" type="button" data-act="history">📒 My puzzles</button>` : '')}
+      <p class="lead">Solve ${UNLOCK_AFTER} puzzles of one kind to open the next kind. Each puzzle is worth ${PUZZLE_STARS} ${STAR}, and each hint costs 1.</p>
       <div class="grid">${P.THEMES.map((t, i) => {
         const open = themeUnlocked(i), rec = themeRec(t.id);
         if (!open) return `<div class="card locked"><span class="lock">🔒</span><span class="emo">${t.icon}</span><h3>${t.title}</h3><p>Solve ${UNLOCK_AFTER} “${P.THEMES[i - 1].title}” puzzles to open.</p></div>`;
         return `<button class="card" type="button" data-id="${t.id}"><span class="num">Level ${themeLevel(t.id)}</span><span class="emo">${t.icon}</span><h3>${t.title}</h3><p>${t.about}</p>
           <div class="meta">✅ ${rec.solved} solved</div></button>`;
       }).join('')}</div>`, screenHome);
-    el.addEventListener('click', (e) => { const b = e.target.closest('[data-id]'); if (b) screenTheme(b.dataset.id); });
+    el.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-id],[data-act="history"]');
+      if (!b) return;
+      if (b.dataset.act === 'history') screenHistory();
+      else screenTheme(b.dataset.id);
+    });
   }
 
   function screenTheme(themeId) {
-    const theme = P.THEME[themeId];
     const rec = themeRec(themeId);
     const level = themeLevel(themeId);
-    const puzzle = P.makePuzzle(themeId, level, themeSeed(themeId, rec.next));
-    const el = show(stageHTML(`${theme.icon} ${theme.title}`, `<span class="chip">Level ${level}</span>`), screenPuzzles);
-    const talk = makeTalk(el);
-    const counter = $('#counter', el), actions = $('#actions', el);
-    counter.innerHTML = `<span>✅ Solved: ${rec.solved}</span>`;
-    setPid(el, `Puzzle ID: ${puzzle.id}`);
-    actions.innerHTML = `<button class="btn sun" type="button" data-act="hint"><span class="ico">💡</span> Hint</button><button class="btn ghost small" type="button" data-act="skip">New puzzle ➜</button>`;
-    const runner = puzzleRunner($('#board', el), puzzle, {
-      talk,
-      solved() {
-        const idx = P.THEMES.findIndex((t) => t.id === themeId);
-        const wasOpen = themeUnlocked(idx + 1);
-        rec.solved++;
-        rec.next++;
-        S.puzzlesSolved++;
-        save();
-        addStars(1);
-        Sound.good();
-        confetti(70);
-        talk(praise(), 'good');
-        counter.innerHTML = `<span>✅ Solved: ${rec.solved}</span><span>+1 ${STAR}</span>`;
-        actions.innerHTML = `<button class="btn green" type="button" data-act="next">Next puzzle <span class="ico">▶</span></button>`;
-        const nextTheme = P.THEMES[idx + 1];
-        if (nextTheme && !wasOpen && themeUnlocked(idx + 1)) {
-          setTimeout(() => toast(`<span class="emo">${nextTheme.icon}</span> New puzzles: ${nextTheme.title}!`), 900);
-        }
-      },
-    });
-    actions.addEventListener('click', (e) => {
-      const b = e.target.closest('[data-act]');
-      if (!b) return;
-      if (b.dataset.act === 'hint') runner.hint();
-      else if (b.dataset.act === 'skip') { rec.next++; save(); screenTheme(themeId); }
-      else if (b.dataset.act === 'next') screenTheme(themeId);
-    });
-    cleanup = () => runner.destroy();
+    screenPuzzle(P.makePuzzle(themeId, level, themeSeed(themeId, rec.next)), { kind: 'theme' });
   }
 
   function screenDaily() {
@@ -575,52 +593,172 @@
     const i = S.daily.done;
     if (i >= 5) return screenHome();
     const item = S.daily.list[i];
-    const puzzle = P.makePuzzle(item.theme, item.level, item.seed);
-    const theme = P.THEME[item.theme];
-    const dots = `<span class="stage-dots">${S.daily.list.map((_, j) => `<i class="${j < i ? 'on' : j === i ? 'cur' : ''}"></i>`).join('')}</span>`;
-    const el = show(stageHTML('Today’s Challenge', dots), screenHome);
+    screenPuzzle(P.makePuzzle(item.theme, item.level, item.seed), { kind: 'daily', item, index: i });
+  }
+
+  // One screen for practice, the daily challenge and replays.
+  // carry.hints keeps hints already used when she starts the same puzzle over.
+  function screenPuzzle(puzzle, mode, carry) {
+    carry = carry || { hints: 0 };
+    const theme = P.THEME[puzzle.themeId];
+    const hist = logPuzzle(puzzle);
+    const firstSolve = !hist.solved;
+    const worth = () => (firstSolve ? Math.max(0, PUZZLE_STARS - carry.hints) : 0);
+    const level = `<span class="chip">Level ${puzzle.level}</span>`;
+    let title, right, back;
+    if (mode.kind === 'daily') {
+      title = 'Today’s Challenge';
+      right = `<span class="stage-dots">${S.daily.list.map((_, j) => `<i class="${j < mode.index ? 'on' : j === mode.index ? 'cur' : ''}"></i>`).join('')}</span>`;
+      back = screenHome;
+    } else if (mode.kind === 'replay') {
+      title = `${theme.icon} Replay`;
+      right = level;
+      back = screenHistory;
+    } else {
+      title = `${theme.icon} ${theme.title}`;
+      right = level;
+      back = screenPuzzles;
+    }
+    const el = show(stageHTML(title, right), back);
     const talk = makeTalk(el);
     const counter = $('#counter', el), actions = $('#actions', el);
-    counter.innerHTML = `<span>Puzzle ${i + 1} of 5</span><span>${theme.icon} ${theme.title}</span>`;
+    const rec = themeRec(puzzle.themeId);
+    let earned = null;
+    const info = () => {
+      const where = mode.kind === 'daily' ? `<span>Puzzle ${mode.index + 1} of 5</span><span>${theme.icon} ${theme.title}</span>`
+        : mode.kind === 'replay' ? `<span>${hist.solved ? '✅ Solved before' : 'Not solved yet'}</span>` : `<span>✅ Solved: ${rec.solved}</span>`;
+      const value = earned != null ? `<span>Earned: ${earned} ${STAR}</span>` : firstSolve ? `<span>Worth: ${worth()} ${STAR}</span>` : '<span>Practice: no stars</span>';
+      counter.innerHTML = where + value;
+    };
+    info();
     setPid(el, `Puzzle ID: ${puzzle.id}`);
-    actions.innerHTML = `<button class="btn sun" type="button" data-act="hint"><span class="ico">💡</span> Hint</button><button class="btn ghost small" type="button" data-act="swap">Different puzzle ➜</button>`;
+    const skipLabel = mode.kind === 'daily' ? 'Different puzzle ➜' : 'New puzzle ➜';
+    actions.innerHTML = `<button class="btn sun" type="button" data-act="hint"></button>
+      <button class="btn ghost small" type="button" data-act="restart">↺ Start over</button>
+      ${mode.kind === 'replay' ? '' : `<button class="btn ghost small" type="button" data-act="skip">${skipLabel}</button>`}`;
+
+    let hints = null;
     const runner = puzzleRunner($('#board', el), puzzle, {
       talk,
       solved() {
-        S.daily.done++;
-        S.puzzlesSolved++;
-        themeRec(item.theme).solved++;
-        save();
-        addStars(1);
-        if (S.daily.done >= 5) {
-          if (S.streak.last !== today()) {
-            S.streak.count = S.streak.last === yesterday() ? S.streak.count + 1 : 1;
-            S.streak.last = today();
-          }
-          save();
-          addStars(5);
-          Sound.win();
-          confetti(200);
-          const o = overlay(`${PIP}<h2>Challenge complete!</h2><div class="big-stars">${STAR}${STAR}${STAR}${STAR}${STAR}</div>
-            <p>Bonus: +5 stars! 🔥 ${S.streak.count} day${S.streak.count === 1 ? '' : 's'} in a row.</p>
-            <div class="row"><button class="btn green" type="button" data-act="home">Yay!</button></div>`, () => { o.remove(); screenHome(); });
-          say(`Challenge complete! You get 5 bonus stars! ${praise()}`);
-          return;
+        if (hints) hints.stop();
+        const stars = worth();
+        earned = firstSolve ? stars : null;
+        logPuzzle(puzzle, { solved: true, stars: Math.max(hist.stars || 0, stars), hints: carry.hints, solvedOn: today() });
+        if (firstSolve) S.puzzlesSolved++;
+        let unlocked = null;
+        if (mode.kind === 'theme') {
+          const idx = P.THEMES.findIndex((t) => t.id === puzzle.themeId);
+          const wasOpen = themeUnlocked(idx + 1);
+          if (firstSolve) rec.solved++;
+          if (themeSeed(puzzle.themeId, rec.next) === puzzle.seed) rec.next++;
+          if (P.THEMES[idx + 1] && !wasOpen && themeUnlocked(idx + 1)) unlocked = P.THEMES[idx + 1];
         }
+        if (mode.kind === 'daily') {
+          S.daily.done++;
+          if (firstSolve) rec.solved++;
+        }
+        save();
+        addStars(stars);
+        if (mode.kind === 'daily' && S.daily.done >= 5) return dailyComplete();
         Sound.good();
         confetti(70);
-        talk(praise(), 'good');
-        actions.innerHTML = `<button class="btn green" type="button" data-act="next">Next puzzle <span class="ico">▶</span></button>`;
+        const note = stars ? `+${stars} ${STAR}` : !firstSolve ? 'That was practice, so no stars.' : 'No stars this time because of the hints. Try the next one on your own!';
+        talk(`${praise()} <span class="sub">${note}</span>`, 'good');
+        info();
+                actions.innerHTML = (mode.kind === 'replay'
+          ? `<button class="btn green" type="button" data-act="list">My puzzles <span class="ico">▶</span></button>`
+          : `<button class="btn green" type="button" data-act="next">Next puzzle <span class="ico">▶</span></button>`) +
+          `<button class="btn ghost small" type="button" data-act="replay">↺ Play it again</button>`;
+        if (unlocked) setTimeout(() => toast(`<span class="emo">${unlocked.icon}</span> New puzzles: ${unlocked.title}!`), 900);
+      },
+    });
+    hints = hintButton($('[data-act="hint"]', actions), {
+      used: carry.hints,
+      cost: firstSolve,
+      onUse(n) {
+        carry.hints = n;
+        logPuzzle(puzzle, { hints: Math.max(hist.hints || 0, n) });
+        runner.hint(n);
+        info();
       },
     });
     actions.addEventListener('click', (e) => {
       const b = e.target.closest('[data-act]');
       if (!b) return;
-      if (b.dataset.act === 'hint') runner.hint();
-      else if (b.dataset.act === 'swap') { item.seed += 1000; save(); screenDaily(); }
-      else if (b.dataset.act === 'next') screenDaily();
+      const act = b.dataset.act;
+      if (act === 'restart') screenPuzzle(puzzle, mode, carry);
+      else if (act === 'replay') screenPuzzle(puzzle, mode.kind === 'replay' ? mode : { kind: 'replay' }, { hints: 0 });
+      else if (act === 'list') screenHistory();
+      else if (act === 'next') (mode.kind === 'daily' ? screenDaily : () => screenTheme(puzzle.themeId))();
+      else if (act === 'skip') {
+        if (mode.kind === 'daily') { mode.item.seed += 1000; save(); screenDaily(); }
+        else { if (themeSeed(puzzle.themeId, rec.next) === puzzle.seed) rec.next++; save(); screenTheme(puzzle.themeId); }
+      }
     });
-    cleanup = () => runner.destroy();
+    cleanup = () => { runner.destroy(); hints.stop(); };
+  }
+
+  function dailyComplete() {
+    if (S.streak.last !== today()) {
+      S.streak.count = S.streak.last === yesterday() ? S.streak.count + 1 : 1;
+      S.streak.last = today();
+    }
+    save();
+    addStars(5);
+    Sound.win();
+    confetti(200);
+    const o = overlay(`${PIP}<h2>Challenge complete!</h2><div class="big-stars">${STAR}${STAR}${STAR}${STAR}${STAR}</div>
+      <p>Bonus: +5 stars! 🔥 ${S.streak.count} day${S.streak.count === 1 ? '' : 's'} in a row.</p>
+      <div class="row"><button class="btn green" type="button" data-act="home">Yay!</button></div>`, () => { o.remove(); screenHome(); });
+    say(`Challenge complete! You get 5 bonus stars! ${praise()}`);
+  }
+
+  function miniBoard(fen) {
+    const b = C.parseFEN(fen).board;
+    let html = '';
+    for (let r = 7; r >= 0; r--) for (let f = 0; f < 8; f++) {
+      const p = b[r * 8 + f];
+      html += `<i class="${(r + f) % 2 ? 'l' : 'd'}"${p ? ` style="background-image:url('${window.Pieces.uri(p)}')"` : ''}></i>`;
+    }
+    return `<span class="mini">${html}</span>`;
+  }
+
+  function screenHistory(filter, shown) {
+    filter = filter || 'all';
+    shown = shown || 24;
+    const all = S.history || [];
+    const list = all.filter((h) => (filter === 'all' ? true : filter === 'open' ? !h.solved : h.theme === filter));
+    const themes = P.THEMES.filter((t) => all.some((h) => h.theme === t.id));
+    const fmt = (d) => { try { return new Date(d + 'T12:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' }); } catch (e) { return d; } };
+    const el = show(`${topbar('My puzzles')}
+      <p class="lead">Every puzzle you have seen. Tap one to play it again. Replays are for practice and do not earn stars, unless you never solved it.</p>
+      <div class="options">
+        <div class="toggle" role="group" aria-label="Show">
+          <button type="button" data-f="all" class="${filter === 'all' ? 'on' : ''}">All</button>
+          <button type="button" data-f="open" class="${filter === 'open' ? 'on' : ''}">Not solved</button>
+        </div>
+        <div class="toggle" role="group" aria-label="Puzzle type">${themes.map((t) => `<button type="button" data-f="${t.id}" class="${filter === t.id ? 'on' : ''}" title="${t.title}">${t.icon}</button>`).join('')}</div>
+      </div>
+      ${list.length ? '' : '<p class="lead">No puzzles here yet.</p>'}
+      <div class="history">${list.slice(0, shown).map((h) => {
+        const t = P.THEME[h.theme];
+        return `<button class="hcard" type="button" data-id="${esc(h.id)}">${miniBoard(h.fen)}
+          <span class="hinfo"><b>${t ? t.icon + ' ' + t.title : h.theme}</b><small>Level ${h.level} · ${fmt(h.date)}</small>
+          <span class="hstat">${h.solved ? `✅ <span class="stars-row">${starsRow(h.stars, PUZZLE_STARS)}</span>` : '🔁 Not solved'}</span>
+          <small class="pid">${esc(h.id)}</small></span></button>`;
+      }).join('')}</div>
+      ${list.length > shown ? '<div><button class="btn ghost small" type="button" data-act="more">Show more</button></div>' : ''}`, screenPuzzles);
+    el.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.f) screenHistory(b.dataset.f);
+      else if (b.dataset.act === 'more') screenHistory(filter, shown + 24);
+      else if (b.dataset.id) {
+        const h = historyOf(b.dataset.id);
+        if (h) screenPuzzle(puzzleFromHistory(h), { kind: 'replay' });
+      }
+    });
   }
 
   // ================================================================ PLAY
@@ -690,7 +828,7 @@
           <div class="player"><span class="face">${PIP.replace('class="pip"', 'class="pip" style="width:44px;height:48px"')}</span><span class="who"><b>${youName}</b><small>${you === 'w' ? 'White' : 'Black'}</small></span></div>
           <div class="caps" id="youcaps"></div>
           <button class="btn blue" type="button" data-act="undo"><span class="ico">↶</span> Oops! Undo</button>
-          <button class="btn sun" type="button" data-act="hint"><span class="ico">💡</span> Hint</button>
+          <button class="btn sun" type="button" data-act="hint"></button>
           <button class="btn ghost small" type="button" data-act="new">New game</button>
         </section>
       </main>`, screenPlaySetup);
@@ -779,9 +917,10 @@
     function endOverlay(r) {
       let html, stars = 0;
       if (r.winner === you) {
-        stars = pawns ? Math.max(1, bot.stars - 1) : bot.stars;
+        stars = Math.max(1, (pawns ? Math.max(1, bot.stars - 1) : bot.stars) - gameHints.used);
         const why = pawns ? (r.reason === 'stuck' ? 'The robot has no moves left!' : 'Your pawns won the race!') : 'Checkmate! The king cannot escape.';
-        html = `${PIP}<h2>You won!</h2><p>${why}</p><div class="big-stars">+${stars} ${STAR}</div>`;
+        const hintNote = gameHints.used ? `<p>${gameHints.used} hint${gameHints.used === 1 ? '' : 's'} used: −${gameHints.used} ${STAR}</p>` : '';
+        html = `${PIP}<h2>You won!</h2><p>${why}</p><div class="big-stars">+${stars} ${STAR}</div>${hintNote}`;
         Sound.win();
         confetti(220);
         say(`You won! ${why}`);
@@ -841,17 +980,25 @@
       const act = b.dataset.act;
       if (act === 'undo') undo();
       else if (act === 'new') screenGame();
-      else if (act === 'hint') {
-        if (over || cur().turn !== you || board.locked) return;
+    });
+
+    // Up to 3 hints a game, each taking one star off a win (a win always earns at least 1).
+    const gameHints = hintButton($('[data-act="hint"]', el), {
+      max: 3,
+      onUse() {
+        if (over || cur().turn !== you || board.locked) return false;
         const m = A.hintMove(cur(), hist.map(C.posKey));
-        if (m) { board.setMarks({ arrows: [[m.from, m.to]] }); talk('How about this move?'); }
-      }
+        if (!m) return false;
+        board.setMarks({ arrows: [[m.from, m.to]] });
+        talk('How about this move?');
+        return true;
+      },
     });
 
     refresh();
     say(pawns ? 'Pawn Battle! Get one of your pawns to the other side to win.' : `Let's play! Good luck against ${bot.name}.`);
     if (cur().turn === you) yourTurn(); else botTurn();
-    cleanup = () => { if (timer) clearTimeout(timer); };
+    cleanup = () => { if (timer) clearTimeout(timer); gameHints.stop(); };
   }
 
   // ================================================================ STICKERS
@@ -881,6 +1028,10 @@
           <label class="sw">Read instructions aloud <input type="checkbox" id="s-voice" ${S.settings.voice ? 'checked' : ''}></label>
           <label class="sw">Show where pieces can move <input type="checkbox" id="s-dots" ${S.settings.dots ? 'checked' : ''}></label>
           <label class="sw">Open all puzzle types <input type="checkbox" id="s-unlock" ${S.settings.unlockAll ? 'checked' : ''}></label>
+          <div class="sw-row"><span>Wait before each hint</span>
+            <div class="toggle small" role="group" aria-label="Wait before each hint">${[0, 10, 20, 30, 60].map((n) => `<button type="button" data-wait="${n}" class="${(S.settings.hintWait || 0) === n ? 'on' : ''}">${n ? n + 's' : 'None'}</button>`).join('')}</div>
+          </div>
+          <p>Puzzles are worth ${PUZZLE_STARS} stars, and each hint (2 at most) costs 1. In games, each hint (3 at most) takes 1 star off a win.</p>
         </section>
         <section>
           <h3>Progress</h3>
@@ -915,10 +1066,16 @@
     const msg = $('#code-msg', el);
     let resetArmed = false;
     el.addEventListener('click', (e) => {
-      const b = e.target.closest('[data-act]');
+      const b = e.target.closest('[data-act],[data-wait]');
       if (!b) return;
       const act = b.dataset.act;
       const code = $('#code', el);
+      if (b.dataset.wait != null) {
+        S.settings.hintWait = +b.dataset.wait;
+        save();
+        el.querySelectorAll('[data-wait]').forEach((x) => x.classList.toggle('on', x === b));
+        return;
+      }
       if (act === 'copy') {
         const fallback = () => { code.select(); msg.textContent = 'Code selected. Use Copy from the menu.'; };
         try { navigator.clipboard.writeText(code.value).then(() => { msg.textContent = 'Copied!'; }, fallback); } catch (err) { fallback(); }
