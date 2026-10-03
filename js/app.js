@@ -868,6 +868,8 @@
   // ================================================================ PLAY
   function screenPlaySetup() {
     const p = S.play;
+    // Leaving a game saves it in its cleanup; run that first so the game is listed.
+    if (cleanup) { cleanup(); cleanup = null; }
     const render = () => {
       const gamesBtn = (S.gameLog || []).length ? '<button class="btn ghost small" type="button" data-act="games">📜 My games</button>' : '';
       const el = show(`${topbar('Play', gamesBtn)}
