@@ -277,6 +277,33 @@
   const givesCheck = (pos, m) => inCheck(makeMove(pos, m), other(pos.turn));
   const sameMove = (a, b) => a.from === b.from && a.to === b.to && (a.promo || 'Q') === (b.promo || 'Q');
 
+  // Standard algebraic notation, e.g. Nf3, exd5, O-O, e8=Q, Qh5#.
+  function toSAN(pos, m) {
+    let san;
+    if (m.flag === 'castle') san = (m.to & 7) === 6 ? 'O-O' : 'O-O-O';
+    else if (m.piece[1] === 'P') {
+      san = (m.captured ? FILES[m.from & 7] + 'x' : '') + sqName(m.to) + (m.promo ? '=' + m.promo : '');
+    } else {
+      const rivals = legalMoves(pos).filter((o) => o.piece === m.piece && o.to === m.to && o.from !== m.from);
+      let dis = '';
+      if (rivals.length) {
+        if (!rivals.some((o) => (o.from & 7) === (m.from & 7))) dis = FILES[m.from & 7];
+        else if (!rivals.some((o) => (o.from >> 3) === (m.from >> 3))) dis = String((m.from >> 3) + 1);
+        else dis = sqName(m.from);
+      }
+      san = m.piece[1] + dis + (m.captured ? 'x' : '') + sqName(m.to);
+    }
+    const next = makeMove(pos, m);
+    if (inCheck(next)) san += legalMoves(next).length ? '+' : '#';
+    return san;
+  }
+
+  const toUCI = (m) => sqName(m.from) + sqName(m.to) + (m.promo ? m.promo.toLowerCase() : '');
+  function fromUCI(pos, uci) {
+    const from = sqIndex(uci.slice(0, 2)), to = sqIndex(uci.slice(2, 4)), promo = uci[4] ? uci[4].toUpperCase() : undefined;
+    return legalMoves(pos, from).find((m) => m.to === to && (m.promo || undefined) === promo) || null;
+  }
+
   function perft(pos, depth) {
     if (depth === 0) return 1;
     const moves = legalMoves(pos);
@@ -289,7 +316,7 @@
   const api = {
     FILES, VALUES, START_FEN, KNIGHT, KING, RAYS,
     sqName, sqIndex, other, parseFEN, toFEN, posKey, findKing, attacked, attackers, inCheck,
-    pseudoMoves, legalMoves, makeMove, isLegalAfter, status, givesCheck, sameMove, insufficientMaterial, perft,
+    pseudoMoves, legalMoves, makeMove, isLegalAfter, status, givesCheck, sameMove, insufficientMaterial, perft, toSAN, toUCI, fromUCI,
   };
   root.Chess = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

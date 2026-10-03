@@ -590,14 +590,19 @@
 
   // ---- puzzle history: every puzzle she has seen, so she can replay it
   const historyOf = (id) => (S.history || []).find((h) => h.id === id);
-  function logPuzzle(pz, patch) {
+  // played=true when she opens the puzzle: it moves to the top, so the list stays last-played first.
+  function logPuzzle(pz, patch, played) {
     S.history = S.history || [];
     let h = historyOf(pz.id);
     if (!h) {
       h = { id: pz.id, theme: pz.themeId, level: pz.level, seed: pz.seed, goal: pz.goal, fen: pz.fen, date: today(), solved: false, stars: 0, hints: 0 };
       S.history.unshift(h);
       if (S.history.length > 300) S.history.length = 300;
+    } else if (played && S.history[0] !== h) {
+      S.history.splice(S.history.indexOf(h), 1);
+      S.history.unshift(h);
     }
+    if (played) h.last = Date.now();
     Object.assign(h, patch || {});
     save();
     return h;
@@ -667,7 +672,7 @@
   function screenPuzzle(puzzle, mode, carry) {
     carry = carry || { hints: 0 };
     const theme = P.THEME[puzzle.themeId];
-    const hist = logPuzzle(puzzle);
+    const hist = logPuzzle(puzzle, null, true);
     const firstSolve = !hist.solved;
     const worth = () => (firstSolve ? Math.max(0, PUZZLE_STARS - carry.hints) : 0);
     const level = `<span class="chip">Level ${puzzle.level}</span>`;
@@ -812,9 +817,31 @@
     const all = S.history || [];
     const list = all.filter((h) => (filter === 'all' ? true : filter === 'open' ? !h.solved : h.theme === filter));
     const themes = P.THEMES.filter((t) => all.some((h) => h.theme === t.id));
-    const fmt = (d) => { try { return new Date(d + 'T12:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' }); } catch (e) { return d; } };
+    // Entries saved before `last` existed only know the day they were first seen.
+    const dayOf = (h) => (h.last ? dayStr(new Date(h.last)) : h.date);
+    const dayLabel = (d) => {
+      if (d === today()) return 'Today';
+      if (d === yesterday()) return 'Yesterday';
+      const dt = new Date(d + 'T12:00');
+      const opts = Date.now() - dt < 6 * 864e5 ? { weekday: 'long' } : { weekday: 'short', day: 'numeric', month: 'short' };
+      try { return dt.toLocaleDateString(undefined, opts); } catch (e) { return d; }
+    };
+    const timeOf = (h) => { try { return h.last ? ' · ' + new Date(h.last).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : ''; } catch (e) { return ''; } };
+    const card = (h) => {
+      const t = P.THEME[h.theme];
+      return `<button class="hcard" type="button" data-id="${esc(h.id)}">${miniBoard(h.fen)}
+          <span class="hinfo"><b>${t ? t.icon + ' ' + t.title : h.theme}</b><small>Level ${h.level}${timeOf(h)}</small>
+          <span class="hstat">${h.solved ? `✅ <span class="stars-row">${starsRow(h.stars, PUZZLE_STARS)}</span>` : '🔁 Not solved'}</span>
+          <small class="pid">${esc(h.id)}</small></span></button>`;
+    };
+    const groups = [];
+    for (const h of list.slice(0, shown)) {
+      const d = dayOf(h);
+      if (!groups.length || groups[groups.length - 1].day !== d) groups.push({ day: d, items: [] });
+      groups[groups.length - 1].items.push(h);
+    }
     const el = show(`${topbar('My puzzles')}
-      <p class="lead">Every puzzle you have seen. Tap one to play it again. Replays are for practice and do not earn stars, unless you never solved it.</p>
+      <p class="lead">Every puzzle you have seen, the one you played last at the top. Tap one to play it again. Replays are for practice and do not earn stars, unless you never solved it.</p>
       <div class="options">
         <div class="toggle" role="group" aria-label="Show">
           <button type="button" data-f="all" class="${filter === 'all' ? 'on' : ''}">All</button>
@@ -823,13 +850,7 @@
         <div class="toggle" role="group" aria-label="Puzzle type">${themes.map((t) => `<button type="button" data-f="${t.id}" class="${filter === t.id ? 'on' : ''}" title="${t.title}">${t.icon}</button>`).join('')}</div>
       </div>
       ${list.length ? '' : '<p class="lead">No puzzles here yet.</p>'}
-      <div class="history">${list.slice(0, shown).map((h) => {
-        const t = P.THEME[h.theme];
-        return `<button class="hcard" type="button" data-id="${esc(h.id)}">${miniBoard(h.fen)}
-          <span class="hinfo"><b>${t ? t.icon + ' ' + t.title : h.theme}</b><small>Level ${h.level} · ${fmt(h.date)}</small>
-          <span class="hstat">${h.solved ? `✅ <span class="stars-row">${starsRow(h.stars, PUZZLE_STARS)}</span>` : '🔁 Not solved'}</span>
-          <small class="pid">${esc(h.id)}</small></span></button>`;
-      }).join('')}</div>
+      ${groups.map((g) => `<h3 class="hday">${dayLabel(g.day)}</h3><div class="history">${g.items.map(card).join('')}</div>`).join('')}
       ${list.length > shown ? '<div><button class="btn ghost small" type="button" data-act="more">Show more</button></div>' : ''}`, screenPuzzles);
     el.addEventListener('click', (e) => {
       const b = e.target.closest('button');
@@ -847,7 +868,8 @@
   function screenPlaySetup() {
     const p = S.play;
     const render = () => {
-      const el = show(`${topbar('Play')}
+      const gamesBtn = (S.gameLog || []).length ? '<button class="btn ghost small" type="button" data-act="games">📜 My games</button>' : '';
+      const el = show(`${topbar('Play', gamesBtn)}
         <h3 class="section-title">Pick a robot</h3>
         <div class="grid">${A.BOTS.map((b) => {
           const g = S.games[b.id] || { won: 0, played: 0 };
@@ -874,6 +896,7 @@
         else if (b.dataset.variant) { p.variant = b.dataset.variant; save(); render(); }
         else if (b.dataset.color) { p.color = b.dataset.color; save(); render(); }
         else if (b.dataset.act === 'start') screenGame();
+        else if (b.dataset.act === 'games') screenGames();
       });
     };
     render();
@@ -887,14 +910,36 @@
     blocked: 'No pawn can move, so it is a draw. Just like stalemate in chess!'
   };
 
+  function startPosition(variant) {
+    if (variant !== 'pawns') return C.parseFEN(C.START_FEN);
+    return Object.assign(C.parseFEN('8/pppppppp/8/8/8/8/PPPPPPPP/8 w - - 0 1'), { variant: 'pawns', noPromo: true });
+  }
+
   function screenGame() {
     const cfg = S.play;
     const bot = A.BOTS.find((b) => b.id === cfg.bot);
     const you = cfg.color;
-    const pawns = cfg.variant === 'pawns';
-    const start = C.parseFEN(pawns ? '8/pppppppp/8/8/8/8/PPPPPPPP/8 w - - 0 1' : C.START_FEN);
-    if (pawns) { start.variant = 'pawns'; start.noPromo = true; }
+    const variant = cfg.variant;
+    const pawns = variant === 'pawns';
+    const start = startPosition(variant);
     const hist = [start], played = [];
+    const gid = Date.now().toString(36);
+
+    // Keep the game in "My games" (last 50) so she can review it.
+    function saveGame(result, reason) {
+      if (!played.length) return;
+      S.gameLog = S.gameLog || [];
+      let g = S.gameLog.find((x) => x.id === gid);
+      if (!g) {
+        g = { id: gid, date: today(), bot: bot.id, variant, color: you };
+        S.gameLog.unshift(g);
+        if (S.gameLog.length > 50) S.gameLog.length = 50;
+      }
+      const moves = played.map(C.toUCI);
+      if (!g.moves || g.moves.join() !== moves.join()) g.analysis = null;
+      Object.assign(g, { moves, result, reason: reason || '', hints: gameHints ? gameHints.used : 0 });
+      save();
+    }
     let over = null, timer = null, recorded = false;
     const cur = () => hist[hist.length - 1];
     const youName = S.name ? esc(S.name) : 'You';
@@ -993,6 +1038,7 @@
         if (r.winner === you) g.won++;
         save();
       }
+      saveGame(r.winner === you ? 'win' : r.winner ? 'loss' : 'draw', r.reason);
       setTimeout(() => endOverlay(r), 700);
       return true;
     }
@@ -1020,9 +1066,10 @@
       if (stars && !r.paid) { r.paid = true; addStars(stars); }
       const lost = r.winner && r.winner !== you;
       const o = overlay(`${html}<div class="row">${lost ? '<button class="btn blue" type="button" data-act="undo">↶ Take back</button>' : ''}
-        <button class="btn green" type="button" data-act="again">Play again</button><button class="btn ghost" type="button" data-act="setup">Choose robot</button></div>`, (act) => {
+        <button class="btn green" type="button" data-act="again">Play again</button><button class="btn plum" type="button" data-act="review">🔍 Review game</button><button class="btn ghost" type="button" data-act="setup">Choose robot</button></div>`, (act) => {
         o.remove();
         if (act === 'again') screenGame();
+        else if (act === 'review') screenReview(gid);
         else if (act === 'setup') screenPlaySetup();
         else if (act === 'undo') undo();
       });
@@ -1081,7 +1128,185 @@
     refresh();
     say(pawns ? 'Pawn Battle! Get one of your pawns to the other side to win.' : `Let's play! Good luck against ${bot.name}.`);
     if (cur().turn === you) yourTurn(); else botTurn();
-    cleanup = () => { if (timer) clearTimeout(timer); gameHints.stop(); };
+    cleanup = () => {
+      if (timer) clearTimeout(timer);
+      gameHints.stop();
+      if (!over && played.length >= 2) saveGame('unfinished');
+    };
+  }
+
+  // ================================================================ GAME REVIEW
+  const RATING = {
+    best: { name: 'Best', sym: '★', say: 'Best move! Just what a master would play.' },
+    good: { name: 'Good', sym: '✓', say: 'Good move.' },
+    inaccuracy: { name: 'Inaccuracy', sym: '?!', say: 'Inaccuracy: not the best move, but not too bad.' },
+    mistake: { name: 'Mistake', sym: '?', say: 'Mistake: this move loses something. There was a better move.' },
+    blunder: { name: 'Blunder', sym: '??', say: 'Blunder! A big mistake, like losing a piece for nothing.' },
+  };
+  const RESULT_TEXT = { win: 'Won', loss: 'Lost', draw: 'Draw', unfinished: 'Not finished' };
+
+  function rebuildGame(g) {
+    let pos = startPosition(g.variant);
+    const positions = [pos], moves = [], sans = [];
+    for (const u of g.moves) {
+      const m = C.fromUCI(pos, u);
+      if (!m) break;
+      sans.push(C.toSAN(pos, m));
+      moves.push(m);
+      pos = C.makeMove(pos, m);
+      positions.push(pos);
+    }
+    return { positions, moves, sans };
+  }
+
+  // Rate her moves a few at a time so the screen stays responsive. Saved, so it only runs once.
+  function analyseGame(g, game, onStep, onDone) {
+    let i = 0, cancelled = false;
+    const out = new Array(game.moves.length).fill(null);
+    function step() {
+      if (cancelled) return;
+      const t0 = Date.now();
+      while (i < game.moves.length && Date.now() - t0 < 40) {
+        const pos = game.positions[i];
+        if (pos.turn === g.color) {
+          const r = A.analyseMove(pos, game.moves[i], 2);
+          out[i] = { l: r.label, b: r.best ? C.toUCI(r.best) : null, mm: r.missedMate ? 1 : 0 };
+        }
+        i++;
+      }
+      onStep(i / Math.max(1, game.moves.length));
+      if (i < game.moves.length) setTimeout(step, 0);
+      else { g.analysis = out; save(); onDone(); }
+    }
+    setTimeout(step, 30);
+    return () => { cancelled = true; };
+  }
+
+  function ratingCounts(g) {
+    const n = { best: 0, good: 0, inaccuracy: 0, mistake: 0, blunder: 0 };
+    for (const a of g.analysis || []) if (a) n[a.l]++;
+    return n;
+  }
+  const ratingChips = (g, named) => {
+    const n = ratingCounts(g);
+    return Object.keys(RATING).map((k) => `<span class="r-chip r-${k}" title="${RATING[k].name}"><b>${RATING[k].sym}</b> ${named ? RATING[k].name + ' ' : ''}${n[k]}</span>`).join('');
+  };
+
+  function screenGames() {
+    const list = S.gameLog || [];
+    const fmt = (d) => { try { return new Date(d + 'T12:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' }); } catch (e) { return d; } };
+    const el = show(`${topbar('My games')}
+      <p class="lead">Your last ${list.length} game${list.length === 1 ? '' : 's'}. Tap one to replay it and see which moves were best and which were blunders.</p>
+      ${list.length ? '' : '<p class="lead">Play a game and it will appear here.</p>'}
+      <div class="history">${list.map((g) => {
+        const bot = A.BOTS.find((b) => b.id === g.bot) || A.BOTS[0];
+        return `<button class="hcard gcard" type="button" data-id="${g.id}"><span class="g-emo">${bot.emoji}</span>
+          <span class="hinfo"><b><span class="res res-${g.result}">${RESULT_TEXT[g.result] || ''}</span> vs ${bot.name}</b>
+          <small>${g.variant === 'pawns' ? 'Pawn Battle' : 'Chess'} · ${g.color === 'w' ? 'White' : 'Black'} · ${Math.ceil(g.moves.length / 2)} moves · ${fmt(g.date)}</small>
+          <span class="hstat">${g.analysis ? ratingChips(g) : '🔍 Tap to review'}</span></span></button>`;
+      }).join('')}</div>`, screenPlaySetup);
+    el.addEventListener('click', (e) => { const b = e.target.closest('[data-id]'); if (b) screenReview(b.dataset.id); });
+  }
+
+  function screenReview(gid) {
+    const g = (S.gameLog || []).find((x) => x.id === gid);
+    if (!g) return screenGames();
+    const bot = A.BOTS.find((b) => b.id === g.bot) || A.BOTS[0];
+    const game = rebuildGame(g);
+    let ply = 0, better = false, stop = null;
+    const el = show(`${topbar(`${bot.emoji} Review vs ${bot.name}`, `<span class="chip">${RESULT_TEXT[g.result] || ''}</span>`)}
+      <main class="stage">
+        <section class="talk">${talkHTML()}<div class="counter" id="counter"></div></section>
+        <section class="board-wrap"><div class="board-frame"><div id="board"></div></div></section>
+        <section class="actions">
+          <div class="nav-row">
+            <button class="round" type="button" data-act="first" aria-label="Start">⏮</button>
+            <button class="round" type="button" data-act="prev" aria-label="Back one move">◀</button>
+            <button class="round" type="button" data-act="next" aria-label="Forward one move">▶</button>
+            <button class="round" type="button" data-act="last" aria-label="End">⏭</button>
+          </div>
+          <button class="btn green small" type="button" data-act="better" hidden>Show better move</button>
+          <div class="movelist" id="moves"></div>
+        </section>
+      </main>`, screenGames);
+    const talk = makeTalk(el);
+    const counter = $('#counter', el), list = $('#moves', el), betterBtn = $('[data-act="better"]', el);
+    const board = new window.Board($('#board', el), { orientation: g.color, showDots: false, movable: () => null });
+    board.locked = true;
+    const pawns = g.variant === 'pawns';
+    const sq = (pos) => (pawns ? -1 : checkSq(pos));
+    const yours = (i) => game.positions[i].turn === g.color;
+
+    function drawList() {
+      const a = g.analysis || [];
+      let html = '';
+      for (let i = 0; i < game.moves.length; i += 2) {
+        html += `<span class="mn">${i / 2 + 1}.</span>`;
+        for (const j of [i, i + 1]) {
+          if (j >= game.moves.length) { html += '<span></span>'; continue; }
+          const r = a[j];
+          html += `<button type="button" class="mv ${r ? 'r-' + r.l : ''} ${j === ply - 1 ? 'cur' : ''} ${yours(j) ? 'mine' : ''}" data-ply="${j + 1}">${game.sans[j]}${r && r.l !== 'good' ? `<b>${RATING[r.l].sym}</b>` : ''}</button>`;
+        }
+      }
+      list.innerHTML = html;
+      const curEl = $('.mv.cur', list);
+      // Scroll only the move list, never the page.
+      if (curEl) list.scrollTop = Math.max(0, curEl.offsetTop - list.clientHeight / 2);
+    }
+
+    function render(animate) {
+      const i = ply - 1, m = game.moves[i], a = g.analysis || [];
+      const r = i >= 0 ? a[i] : null;
+      const canBetter = !!(r && r.b && ['inaccuracy', 'mistake', 'blunder'].includes(r.l));
+      if (!canBetter) better = false;
+      betterBtn.hidden = !canBetter;
+      betterBtn.textContent = better ? 'Back to the game' : 'Show better move';
+      if (better) {
+        const before = game.positions[i];
+        const best = C.fromUCI(before, r.b);
+        board.set(before, { arrows: [[best.from, best.to, 'green'], [m.from, m.to, 'red']], check: sq(before) });
+        talk(`Instead of ${game.sans[i]} (red arrow), ${C.toSAN(before, best)} was better (green arrow).`, 'good', false);
+      } else {
+        board.set(game.positions[ply], { last: m ? [m.from, m.to] : null, check: sq(game.positions[ply]) }, animate ? m : null);
+        let text;
+        if (ply === 0) text = 'This is the start of the game. Tap ▶ to go through the moves.';
+        else if (yours(i)) {
+          const num = `${Math.floor(i / 2) + 1}${game.positions[i].turn === 'w' ? '.' : '…'} ${game.sans[i]}`;
+          text = r ? `<b>${num}</b>: ${r.mm ? 'Blunder! You missed a checkmate!' : RATING[r.l].say}` : `<b>${num}</b>: your move.`;
+        } else text = `${bot.name} played ${game.sans[i]}.`;
+        if (ply === game.moves.length) text += ` <span class="sub">${RESULT_TEXT[g.result]}${g.reason && DRAW_TEXT[g.reason] ? ': ' + DRAW_TEXT[g.reason] : ''}</span>`;
+        const mood = r ? (['mistake', 'blunder'].includes(r.l) ? 'oops' : r.l === 'best' ? 'good' : '') : '';
+        talk(text, mood, false);
+      }
+      drawList();
+    }
+
+    function summary() {
+      counter.innerHTML = g.analysis ? `<span class="r-sum">${ratingChips(g, true)}</span>` : '<span>🔍 Checking your moves…</span>';
+    }
+    summary();
+    if (!g.analysis) {
+      stop = analyseGame(g, game, (f) => { counter.innerHTML = `<span>🔍 Checking your moves… ${Math.round(f * 100)}%</span>`; }, () => { summary(); render(); });
+    }
+
+    el.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-act],[data-ply]');
+      if (!b) return;
+      const act = b.dataset.act;
+      if (b.dataset.ply) { ply = +b.dataset.ply; better = false; render(); return; }
+      if (act === 'better') { better = !better; render(); return; }
+      const before = ply;
+      if (act === 'first') ply = 0;
+      else if (act === 'prev') ply = Math.max(0, ply - 1);
+      else if (act === 'next') ply = Math.min(game.moves.length, ply + 1);
+      else if (act === 'last') ply = game.moves.length;
+      else return;
+      better = false;
+      render(act === 'next' && ply === before + 1);
+      if (act === 'next' && ply === before + 1) Sound.move();
+    });
+    render();
+    cleanup = () => { if (stop) stop(); };
   }
 
   // ================================================================ STICKERS

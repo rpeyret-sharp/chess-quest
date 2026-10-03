@@ -205,12 +205,28 @@
     return best || scored[0].move;
   }
 
+  // Rate a move the way ChessKids does, by how much worse it is than the best move
+  // (in hundredths of a pawn, from a short search). Checkmates count as 15 pawns.
+  const LABELS = ['best', 'good', 'inaccuracy', 'mistake', 'blunder'];
+  function analyseMove(pos, move, depth) {
+    const scored = scoreMoves(pos, depth || 2, { quiesce: true });
+    if (!scored.length) return { label: 'best', loss: 0, best: null, missedMate: false };
+    const cap = (v) => Math.max(-1500, Math.min(1500, v));
+    const best = scored[0];
+    const mine = scored.find((s) => C.sameMove(s.move, move)) || best;
+    const loss = Math.max(0, cap(best.score) - cap(mine.score));
+    const label = scored.length === 1 || C.sameMove(best.move, move) || loss <= 15 ? 'best'
+      : loss < 60 ? 'good' : loss < 150 ? 'inaccuracy' : loss < 300 ? 'mistake' : 'blunder';
+    const missedMate = best.score > MATE / 2 && mine.score < MATE / 2;
+    return { label, loss, best: best.move, missedMate };
+  }
+
   function hintMove(pos, history) {
     const scored = scoreMoves(pos, 2, { quiesce: true, history });
     return scored.length ? scored[0].move : null;
   }
 
-  const api = { BOTS, botMove, hintMove, scoreMoves, evaluate, variantResult, MATE };
+  const api = { BOTS, LABELS, botMove, hintMove, analyseMove, scoreMoves, evaluate, variantResult, MATE };
   root.ChessAI = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

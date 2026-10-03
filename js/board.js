@@ -128,13 +128,16 @@
       }
     }
 
+    // arrows: [[from, to, colour?]] where colour is 'blue' (default), 'green' or 'red'
     drawArrows(arrows) {
-      let html = '<defs><marker id="ah" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="2.2" markerHeight="2.2" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#2F8FCE"/></marker></defs>';
-      for (const [from, to] of arrows) {
+      const COLORS = { blue: '#2F8FCE', green: '#2F9E55', red: '#E0483F' };
+      let html = '<defs>' + Object.entries(COLORS).map(([k, c]) => `<marker id="ah-${k}" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="2.2" markerHeight="2.2" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${c}"/></marker>`).join('') + '</defs>';
+      for (const [from, to, colour] of arrows) {
+        const k = COLORS[colour] ? colour : 'blue';
         const a = this.slot(from), b = this.slot(to);
         const x1 = (a & 7) + 0.5, y1 = (a >> 3) + 0.5, x2 = (b & 7) + 0.5, y2 = (b >> 3) + 0.5;
-        const len = Math.hypot(x2 - x1, y2 - y1), k = (len - 0.3) / len;
-        html += `<line x1="${x1}" y1="${y1}" x2="${x1 + (x2 - x1) * k}" y2="${y1 + (y2 - y1) * k}" stroke="#2F8FCE" stroke-width="0.17" stroke-linecap="round" opacity="0.85" marker-end="url(#ah)"/>`;
+        const len = Math.hypot(x2 - x1, y2 - y1), f = (len - 0.3) / len;
+        html += `<line x1="${x1}" y1="${y1}" x2="${x1 + (x2 - x1) * f}" y2="${y1 + (y2 - y1) * f}" stroke="${COLORS[k]}" stroke-width="0.17" stroke-linecap="round" opacity="0.85" marker-end="url(#ah-${k})"/>`;
       }
       this.arrowLayer.innerHTML = html;
     }

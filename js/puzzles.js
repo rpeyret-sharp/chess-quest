@@ -163,7 +163,9 @@
   function genCapture(rnd, level) {
     const pos = emptyPos();
     if (!placeKings(pos, rnd, rankIn(4, 7))) return null;
-    const nW = [1, 2, 3][level - 1], nB = [between(rnd, 1, 2), between(rnd, 2, 3), between(rnd, 3, 4)][level - 1];
+    // Level 4: a crowded board where three or more captures are traps and only one is free.
+    const nW = level === 4 ? 4 : [1, 2, 3][level - 1];
+    const nB = level === 4 ? between(rnd, 5, 6) : [between(rnd, 1, 2), between(rnd, 2, 3), between(rnd, 3, 4)][level - 1];
     for (let i = 0; i < nW; i++) place(pos, 'w' + pick(rnd, level === 1 ? 'QRBN' : 'QRBNNP'), rnd);
     for (let i = 0; i < nB; i++) place(pos, 'b' + pick(rnd, 'PPNBRQ'), rnd, level === 1 ? null : rankIn(2, 7));
     if (!sane(pos) || C.inCheck(pos, 'w')) return null;
@@ -181,9 +183,9 @@
   function genCheck(rnd, level) {
     const pos = emptyPos();
     if (!placeKings(pos, rnd, rankIn(4, 7))) return null;
-    const nW = level === 1 ? 1 : between(rnd, 2, level);
+    const nW = level === 1 ? 1 : level === 4 ? between(rnd, 3, 4) : between(rnd, 2, level);
     for (let i = 0; i < nW; i++) place(pos, 'w' + pick(rnd, 'QRBN'), rnd);
-    const nB = level === 1 ? ri(rnd, 2) : between(rnd, 1, level);
+    const nB = level === 1 ? ri(rnd, 2) : level === 4 ? between(rnd, 3, 5) : between(rnd, 1, level);
     for (let i = 0; i < nB; i++) place(pos, 'b' + pick(rnd, 'PPNBR'), rnd);
     if (!sane(pos) || C.inCheck(pos, 'w')) return null;
     const moves = C.legalMoves(pos);
@@ -192,7 +194,7 @@
     if (level === 1) return checks.length >= 1 && checks.length <= 3 && checks.every((m) => isSafeCheck(pos, m)) ? pos : null;
     const safe = checks.filter((m) => isSafeCheck(pos, m));
     if (safe.length < 1 || safe.length > (level === 2 ? 2 : 1)) return null;
-    if (checks.length - safe.length < 1) return null;
+    if (checks.length - safe.length < (level === 4 ? 2 : 1)) return null;
     return pos;
   }
 
@@ -202,7 +204,8 @@
     const nB = level === 1 ? 1 : between(rnd, 1, 2);
     for (let i = 0; i < nB; i++) place(pos, 'b' + pick(rnd, 'QRRBN'), rnd);
     if (level > 1) place(pos, 'b' + pick(rnd, 'PNB'), rnd);
-    const nW = level === 1 ? ri(rnd, 2) : between(rnd, 1, 2);
+    if (level === 4) place(pos, 'b' + pick(rnd, 'PPNB'), rnd);
+    const nW = level === 1 ? ri(rnd, 2) : level === 4 ? between(rnd, 2, 3) : between(rnd, 1, 2);
     for (let i = 0; i < nW; i++) place(pos, 'w' + pick(rnd, 'RBNP'), rnd);
     if (!sane(pos) || !C.inCheck(pos, 'w')) return null;
     const wk = C.findKing(pos.board, 'w');
@@ -213,13 +216,15 @@
     const tries = C.pseudoMoves(pos, wk).length;
     if (level === 1) return moves.length === kingMoves.length && moves.length <= 3 && tries - moves.length >= 2 ? pos : null;
     if (level === 2) return kingMoves.length < moves.length && moves.length <= 4 ? pos : null;
+    // Level 4: lots of pieces, and exactly one move saves the king.
+    if (level === 4) return moves.length === 1 && tries >= 3 ? pos : null;
     return moves.length <= 2 && tries >= 3 ? pos : null;
   }
 
   function genMate(rnd, level, kind) {
     const pos = emptyPos();
     const bkZone = level === 1 || rnd() < 0.85 ? onEdge : null;
-    if (kind === 'rook' && level === 3) {
+    if (kind === 'rook' && level >= 3) {
       // Back-rank mate: king on the back rank behind its own pawns.
       const f = pick(rnd, [0, 1, 5, 6, 7]);
       pos.board[56 + f] = 'bK';
@@ -231,6 +236,10 @@
       place(pos, 'wR', rnd, rankIn(0, 4));
       if (rnd() < 0.5) place(pos, 'w' + pick(rnd, 'RBNP'), rnd, rankIn(0, 5));
       for (let i = ri(rnd, 3); i > 0; i--) place(pos, 'b' + pick(rnd, 'PNBR'), rnd, rankIn(2, 6));
+      if (level === 4) {
+        place(pos, 'w' + pick(rnd, 'QBNP'), rnd, rankIn(0, 5));
+        for (let i = between(rnd, 2, 3); i > 0; i--) place(pos, 'b' + pick(rnd, 'PNBR'), rnd, rankIn(2, 6));
+      }
     } else {
       if (!placeKings(pos, rnd, bkZone, kind === 'mix' ? null : (s) => true)) return null;
       if (kind === 'queen') {
@@ -238,14 +247,18 @@
         if (level >= 2 && rnd() < 0.6) place(pos, 'wP', rnd, rankIn(1, 5));
         if (level >= 2) for (let i = ri(rnd, level); i > 0; i--) place(pos, 'bP', rnd, rankIn(2, 6));
         if (level === 3 && rnd() < 0.5) place(pos, 'b' + pick(rnd, 'NB'), rnd);
+        if (level === 4) {
+          place(pos, 'b' + pick(rnd, 'NBR'), rnd);
+          place(pos, 'w' + pick(rnd, 'BNP'), rnd);
+        }
       } else if (kind === 'rook') {
         place(pos, 'wR', rnd);
         if (level === 1) place(pos, 'wR', rnd);
         else for (let i = ri(rnd, 2); i > 0; i--) place(pos, 'bP', rnd, rankIn(2, 6));
       } else {
-        const nW = between(rnd, 2, level + 1);
+        const nW = level === 4 ? between(rnd, 3, 5) : between(rnd, 2, level + 1);
         for (let i = 0; i < nW; i++) place(pos, 'w' + pick(rnd, 'QRRBBNNP'), rnd);
-        const nB = between(rnd, 1, level + 1);
+        const nB = level === 4 ? between(rnd, 3, 5) : between(rnd, 1, level + 1);
         for (let i = 0; i < nB; i++) place(pos, 'b' + pick(rnd, 'PPPNBR'), rnd);
       }
     }
@@ -257,8 +270,9 @@
       checks++;
       if (isMate(pos, m)) mates++;
     }
-    if (mates < 1 || mates > [3, 2, 1][level - 1]) return null;
-    if (level >= 2 && checks - mates < 1) return null;
+    if (mates < 1 || mates > [3, 2, 1, 1][level - 1]) return null;
+    // Level 4: at least two checks that are not mate, to tempt her.
+    if (level >= 2 && checks - mates < (level === 4 ? 2 : 1)) return null;
     return pos;
   }
 
@@ -278,8 +292,10 @@
     pos.board[pick(rnd, starts)] = 'wN';
     const bk = C.findKing(pos.board, 'b');
     if (place(pos, 'wK', rnd, (s) => (s >> 3) <= 3 && !near(s, bk)) < 0) return null;
-    const extras = level === 1 ? ri(rnd, 2) : between(rnd, 1, level + 1);
-    for (let i = 0; i < extras; i++) place(pos, pick(rnd, ['bP', 'bP', 'wP', 'wP', 'bN', 'wB']), rnd);
+    // Level 4: a second knight and a busier board, so she has to work out which knight forks.
+    if (level === 4) place(pos, 'wN', rnd, (s) => (s >> 3) <= 4);
+    const extras = level === 1 ? ri(rnd, 2) : level === 4 ? between(rnd, 3, 5) : between(rnd, 1, level + 1);
+    for (let i = 0; i < extras; i++) place(pos, pick(rnd, level === 4 ? ['bP', 'bP', 'wP', 'wP', 'bN', 'wB', 'bB', 'wP'] : ['bP', 'bP', 'wP', 'wP', 'bN', 'wB']), rnd);
     if (!sane(pos) || C.inCheck(pos, 'w')) return null;
     const moves = C.legalMoves(pos);
     if (moves.some((m) => m.captured && VALUE[m.captured[1]] >= 3 && (isFreeCapture(pos, m) || isWinningTrade(pos, m)))) return null;
@@ -293,12 +309,16 @@
     const sets = level === 1 ? [['Q', 'R'], ['R', 'R']] : level === 2 ? [['Q'], ['R', 'R'], ['Q', 'N']] : [['Q'], ['R'], ['R', 'B'], ['Q', 'B'], ['R', 'N']];
     for (const t of pick(rnd, sets)) place(pos, 'w' + t, rnd);
     for (let i = ri(rnd, level + 1); i > 0; i--) place(pos, 'bP', rnd, rankIn(2, 6));
+    if (level === 4) {
+      place(pos, 'b' + pick(rnd, 'NB'), rnd);
+      place(pos, 'wP', rnd, rankIn(1, 5));
+    }
     if (!sane(pos) || C.inCheck(pos, 'w')) return null;
     const moves = C.legalMoves(pos);
     if (moves.some((m) => C.givesCheck(pos, m) && isMate(pos, m))) return null;
     let keys = 0;
     for (const m of moves) {
-      if (isMate2Key(pos, m) && ++keys > [3, 2, 1][level - 1]) return null;
+      if (isMate2Key(pos, m) && ++keys > [3, 2, 1, 1][level - 1]) return null;
     }
     return keys >= 1 ? pos : null;
   }
