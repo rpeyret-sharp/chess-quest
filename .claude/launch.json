@@ -1,6 +1,7 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "chess", "runtimeExecutable": "node", "runtimeArgs": ["scripts/serve.js", "8765"], "port": 8765 }
+    { "name": "chess", "runtimeExecutable": "node", "runtimeArgs": ["scripts/serve.js", "8765"], "port": 8765 },
+    { "name": "chess-8766", "runtimeExecutable": "node", "runtimeArgs": ["scripts/serve.js", "8766"], "port": 8766 }
   ]
 }
