@@ -93,7 +93,10 @@
       else this.move();
     },
   };
-  document.addEventListener('pointerdown', () => Sound.unlock(), { capture: true });
+  // iPadOS only lets sound start on a finger lift (touchend, click), not on the press, so listen for all of them.
+  for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) document.addEventListener(ev, () => Sound.unlock(), { capture: true });
+  // Play like a media app, so the read-aloud voice is heard even with the iPad on silent.
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* not supported */ }
 
   // ---------------------------------------------------------------- voice
   // Sentences are pre-recorded with a natural voice (scripts/make-voice.js) and played through Web Audio.
@@ -133,6 +136,12 @@
     return all.sort((a, b) => score(b) - score(a))[0] || null;
   }
   if ('speechSynthesis' in window) speechSynthesis.onvoiceschanged = () => { voice = pickVoice(); };
+  // iPadOS only lets speech start from a tap; one silent utterance on the first tap unlocks it for later.
+  const primeSpeech = () => {
+    document.removeEventListener('click', primeSpeech, true);
+    try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } catch (e) { /* no speech */ }
+  };
+  if ('speechSynthesis' in window) document.addEventListener('click', primeSpeech, true);
   function speakDevice(text, turn) {
     return new Promise((done) => {
       if (turn !== talking || !('speechSynthesis' in window)) return done();
@@ -147,15 +156,24 @@
     });
   }
 
+  // Until a tap has unlocked Web Audio, clips would play silently, so the device voice reads instead.
+  async function audioRunning() {
+    const c = Sound.ctx;
+    if (!c) return false;
+    if (c.state !== 'running') await Promise.race([c.resume().catch(() => {}), new Promise((ok) => setTimeout(ok, 300))]);
+    return c.state === 'running';
+  }
+
   function say(text) {
     hush();
     if (!S.settings.voice || !text) return;
     const parts = V.sentences(text);
     const turn = talking;
     Sound.unlock();
-    const ready = !!Sound.ctx;
-    const bufs = parts.map((p) => (ready && CLIPS[p.key] ? clip(CLIPS[p.key]) : Promise.resolve(null)));
     (async () => {
+      const ready = await audioRunning();
+      if (turn !== talking) return;
+      const bufs = parts.map((p) => (ready && CLIPS[p.key] ? clip(CLIPS[p.key]) : Promise.resolve(null)));
       for (let i = 0; i < parts.length; i++) {
         const buf = await bufs[i];
         if (turn !== talking) return;
