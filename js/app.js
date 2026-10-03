@@ -834,7 +834,7 @@
             <button type="button" data-color="b" class="${p.color === 'b' ? 'on' : ''}">${img('bN')} Black</button>
           </div>
         </div>
-        <p class="lead" style="margin:0">${p.variant === 'pawns' ? 'Pawn Battle: only pawns! Get one pawn to the other side to win.' : 'A real game of chess. Checkmate the robot’s king to win!'}</p>
+        <p class="lead" style="margin:0">${p.variant === 'pawns' ? 'Pawn Battle: only pawns! Get one pawn to the other side, or capture all the robot’s pawns, to win. If a player cannot move, it is a draw.' : 'A real game of chess. Checkmate the robot’s king to win!'}</p>
         <div><button class="btn green" type="button" data-act="start">Start game <span class="ico">▶</span></button></div>`, screenHome);
       el.addEventListener('click', (e) => {
         const b = e.target.closest('button');
@@ -853,6 +853,7 @@
     material: 'There are not enough pieces left to checkmate. That is a draw.',
     fifty: '50 moves with no capture and no pawn move. That is a draw.',
     repetition: 'The same position happened three times. That is a draw.',
+    blocked: 'No pawn can move, so it is a draw. Just like stalemate in chess!'
   };
 
   function screenGame() {
@@ -969,14 +970,14 @@
       let html, stars = 0;
       if (r.winner === you) {
         stars = Math.max(1, (pawns ? Math.max(1, bot.stars - 1) : bot.stars) - gameHints.used);
-        const why = pawns ? (r.reason === 'stuck' ? 'The robot has no moves left!' : 'Your pawns won the race!') : 'Checkmate! The king cannot escape.';
+        const why = pawns ? 'Your pawns won the race!' : 'Checkmate! The king cannot escape.';
         const hintNote = gameHints.used ? `<p>${gameHints.used} hint${gameHints.used === 1 ? '' : 's'} used: −${gameHints.used} ${STAR}</p>` : '';
         html = `${PIP}<h2>You won!</h2><p>${why}</p><div class="big-stars">+${stars} ${STAR}</div>${hintNote}`;
         Sound.win();
         confetti(220);
         say(`You won! ${why}`);
       } else if (r.winner) {
-        const why = pawns ? (r.reason === 'stuck' ? 'You have no moves left.' : 'The robot’s pawns won the race.') : 'Checkmate. The robot trapped your king.';
+        const why = pawns ? 'The robot’s pawns won the race.' : 'Checkmate. The robot trapped your king.';
         html = `<div class="big-emo">${bot.emoji}</div><h2>${bot.name} won this time</h2><p>${why} Every game makes you stronger!</p>`;
         say(`${bot.name} won this time. Every game makes you stronger!`);
       } else {

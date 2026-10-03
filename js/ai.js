@@ -25,8 +25,8 @@
   };
 
   // --- Pawn Battle variant -------------------------------------------------
-  // No kings. You win by getting a pawn to the far side, capturing every enemy pawn,
-  // or leaving the opponent with no moves.
+  // No kings. You win by getting a pawn to the far side or capturing every enemy pawn.
+  // If the side to move has no moves, it is a draw (like stalemate in chess).
   function pawnWinner(pos) {
     const b = pos.board;
     let w = 0, bl = 0;
@@ -45,7 +45,7 @@
       const w = pawnWinner(pos);
       if (w) return { winner: w, reason: 'pawns' };
       moves = moves || C.legalMoves(pos);
-      if (!moves.length) return { winner: C.other(pos.turn), reason: 'stuck' };
+      if (!moves.length) return { winner: null, reason: 'blocked' };
       return null;
     }
     moves = moves || C.legalMoves(pos);
@@ -131,7 +131,7 @@
     const moves = C.legalMoves(pos);
     if (pos.variant === 'pawns') {
       const r = variantResult(pos, moves);
-      if (r) return r.winner === pos.turn ? MATE - ply : -MATE + ply;
+      if (r) return !r.winner ? 0 : r.winner === pos.turn ? MATE - ply : -MATE + ply;
     } else {
       if (!moves.length) return C.inCheck(pos) ? -MATE + ply : 0;
       if (ply > 0 && (pos.half >= 100 || C.insufficientMaterial(pos) || ctx.seen.has(C.posKey(pos)))) return 0;
@@ -157,7 +157,7 @@
       let score;
       if (pos.variant === 'pawns') {
         const r = variantResult(next);
-        score = r ? (r.winner === pos.turn ? MATE : -MATE) : -negamax(next, depth - 1, -MATE - 1, MATE + 1, 1, ctx);
+        score = r ? (!r.winner ? 0 : r.winner === pos.turn ? MATE : -MATE) : -negamax(next, depth - 1, -MATE - 1, MATE + 1, 1, ctx);
       } else {
         score = -negamax(next, depth - 1, -MATE - 1, MATE + 1, 1, ctx);
       }
