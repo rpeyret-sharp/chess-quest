@@ -1,9 +1,11 @@
-/* Puzzle themes. Every puzzle is generated from a seed and verified by the engine,
- * so there is an endless supply and the answer is always correct.
+/* Puzzle themes. Most puzzles are generated from a seed and verified by the engine,
+ * so there is an endless supply and the answer is always correct. The tactics types
+ * (pins, skewers and so on) use real puzzles from Lichess (js/lichess-puzzles.js).
  * White is always to move. */
 (function (root) {
   'use strict';
   const C = root.Chess || require('./engine.js');
+  const LP = root.LichessPuzzles || require('./lichess-puzzles.js');
 
   function mulberry32(a) {
     return function () {
@@ -142,6 +144,17 @@
       wrong(pos, m) {
         if (isStalemate(pos, m)) return 'Oh no, stalemate! That is a draw. Try again.';
         return 'Not quite. Black can escape after that. Try another first move.';
+      },
+    },
+    // Lichess puzzles: play the moves of the puzzle's line. Any checkmate also wins.
+    line: {
+      prompt: 'Find the best move!',
+      test: (pos, m, want) => C.sameMove(m, want) || isMate(pos, m),
+      wrong(pos, m) {
+        if (isStalemate(pos, m)) return 'Oh no, stalemate! That is a draw. Try again.';
+        if (C.givesCheck(pos, m)) return 'Check, but that is not the best move. Look again!';
+        if (m.captured) return 'That capture is not the best move. Look again!';
+        return 'Not the best move. Look again!';
       },
     },
     fork: {
@@ -332,20 +345,65 @@
     { id: 'fork', title: 'Knight Fork', icon: '🐴', goal: 'fork', gen: genFork, about: 'Attack two pieces at once.' },
     { id: 'mateMix', title: 'Checkmate Mix', icon: '🏆', goal: 'mate1', gen: (r, l) => genMate(r, l, 'mix'), about: 'Checkmate with any piece.' },
     { id: 'mate2', title: 'Mate in 2', icon: '🧠', goal: 'mate2', gen: genMate2, about: 'Plan two moves ahead.' },
+    // Real puzzles from Lichess. `teach` is read the first time she opens the type.
+    { id: 'promote', title: 'New Queen', icon: '✨', goal: 'line', lichess: true, about: 'Turn a pawn into a queen.',
+      prompt: 'Find the best move! Can a pawn become a queen?',
+      teach: 'When a pawn reaches the other side of the board, it becomes a queen! Sometimes you need a clever move first, to clear the way.' },
+    { id: 'backRank', title: 'Back-Rank Mate', icon: '🧱', goal: 'line', lichess: true, about: 'Trap a king behind its own pawns.',
+      prompt: 'Find checkmate! The king is stuck on its back row.',
+      teach: 'A king behind its own pawns has nowhere to run. A rook or a queen on that back row can give checkmate!' },
+    { id: 'double', title: 'Double Attack', icon: '✌️', goal: 'line', lichess: true, about: 'Attack two things at once, with any piece.',
+      prompt: 'Find the best move! Attack two things at once.',
+      teach: 'A double attack, or fork, hits two pieces at the same time. Your opponent can only save one!' },
+    { id: 'pin', title: 'Pins', icon: '📌', goal: 'line', lichess: true, about: 'A piece that cannot move is easy to win.',
+      prompt: 'Find the best move! Look for a piece that is stuck in a pin.',
+      teach: 'A pin is when a piece cannot move, because a bigger piece is hiding behind it. Pinned pieces are easy to attack!' },
+    { id: 'skewer', title: 'Skewers', icon: '🍢', goal: 'line', lichess: true, about: 'Chase a big piece, win the one behind.',
+      prompt: 'Find the best move! Attack a big piece, and win the one behind it.',
+      teach: 'A skewer attacks a big piece in a straight line. When it moves away, you capture the piece behind it!' },
+    { id: 'discover', title: 'Surprise Attack', icon: '🎁', goal: 'line', lichess: true, about: 'Move one piece to uncover another.',
+      prompt: 'Find the best move! Move one piece to uncover an attack.',
+      teach: 'Move one piece out of the way, and the piece behind it attacks! It is called a discovered attack, and it is a big surprise.' },
   ];
   const THEME = Object.fromEntries(THEMES.map((t) => [t.id, t]));
 
   // Bump VERSION whenever a generator changes, because the same seed then makes a different puzzle.
   // An ID such as "check-2-200005-v3" always names one exact puzzle (see scripts/show-puzzle.js).
   const VERSION = 3;
+  // A Lichess puzzle is named by its Lichess ID instead, e.g. "lichess-KRWGY".
   const puzzleId = (themeId, level, seed) => `${themeId}-${level}-${seed}-v${VERSION}`;
   function parseId(id) {
+    const l = /^lichess-([A-Za-z0-9]+)$/.exec(String(id).trim());
+    if (l) return { lichess: l[1] };
     const m = /^([A-Za-z0-9]+)-(\d)-(\d+)(?:-v(\d+))?$/.exec(String(id).trim());
     return m ? { themeId: m[1], level: +m[2], seed: +m[3], version: m[4] ? +m[4] : null } : null;
   }
 
+  // Black's move is played on the board first; `fen` is the position White solves.
+  function lichessPuzzle(themeId, level, seed, entry) {
+    const [lid, before, setup, line, rating] = entry;
+    const start = C.parseFEN(before);
+    const pos = C.makeMove(start, C.fromUCI(start, setup));
+    const moves = line.split(' ');
+    return { id: `lichess-${lid}`, themeId, level, seed, goal: 'line', fen: C.toFEN(pos), before, setup, line: moves, rating,
+      prompt: THEME[themeId].prompt, solutions: [C.fromUCI(pos, moves[0])] };
+  }
+  let lichessIndex = null;
+  function lichessById(lid) {
+    if (!lichessIndex) {
+      lichessIndex = new Map();
+      for (const t of THEMES) if (t.lichess) LP[t.id].forEach((list, i) => list.forEach((e) => lichessIndex.set(e[0], [t.id, i + 1, e])));
+    }
+    const hit = lichessIndex.get(lid);
+    return hit ? lichessPuzzle(hit[0], hit[1], 0, hit[2]) : null;
+  }
+
   function makePuzzle(themeId, level, seed) {
     const theme = THEME[themeId];
+    if (theme.lichess) {
+      const list = LP[themeId][level - 1];
+      return lichessPuzzle(themeId, level, seed, list[(seed % 100000) % list.length]);
+    }
     const goal = typeof theme.goal === 'function' ? theme.goal(level) : theme.goal;
     for (let attempt = 0; attempt < 40; attempt++) {
       const rnd = mulberry32((seed * 7919 + attempt * 104729) >>> 0);
@@ -372,7 +430,7 @@
     return best;
   }
 
-  const api = { VERSION, THEMES, THEME, GOALS, puzzleId, parseId, makePuzzle, solutionsFor, defenceFor, isMate, isFreeCapture, isWinningTrade, mulberry32 };
+  const api = { VERSION, THEMES, THEME, GOALS, puzzleId, parseId, makePuzzle, lichessById, solutionsFor, defenceFor, isMate, isFreeCapture, isWinningTrade, mulberry32 };
   root.Puzzles = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

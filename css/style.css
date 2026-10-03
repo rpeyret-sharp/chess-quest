@@ -113,7 +113,8 @@ h1, h2, h3 { font-family: var(--font-display); line-height: 1.1; margin: 0; text
 .daily .dots i.on { background: var(--sun); box-shadow: 0 0 0 3px rgba(255,201,60,.3); }
 .daily.done { background: var(--leaf); box-shadow: 0 7px 0 var(--leaf-deep); }
 
-.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+@media (max-width: 900px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tiles .tile { min-height: clamp(150px, calc((100dvh - 360px) / 3), 260px); } }
 @media (max-width: 560px) { .tiles { grid-template-columns: 1fr; } }
 .tile {
   --c: var(--leaf); --d: var(--leaf-deep);
@@ -131,6 +132,8 @@ h1, h2, h3 { font-family: var(--font-display); line-height: 1.1; margin: 0; text
 .tile.puzzles { --c: var(--sea); --d: var(--sea-deep); }
 .tile.play { --c: var(--berry); --d: var(--berry-deep); }
 .tile.stickers { --c: var(--sun); --d: var(--sun-deep); color: var(--ink); }
+.tile.drills { --c: var(--plum); --d: var(--plum-deep); }
+.tile.shop { --c: #F28C38; --d: #C96A1E; }
 .grownups-btn { align-self: center; background: none; border: 0; color: var(--ink-soft); font-weight: 800; font-size: 16px; padding: 12px 18px; border-radius: 12px; position: relative; overflow: hidden; }
 .grownups-btn .fill { position: absolute; inset: 0; background: var(--sky-deep); transform-origin: left; transform: scaleX(0); z-index: -1; }
 .grownups-btn.holding .fill { transform: scaleX(1); transition: transform 1.4s linear; }
@@ -411,3 +414,22 @@ img.pip { display: block; object-fit: contain; -webkit-user-drag: none; }
 .mv b { color: var(--r); }
 .mv.cur { background: var(--sky-deep); }
 @media (max-aspect-ratio: 1/1), (max-width: 760px) { .movelist { max-height: 180px; } }
+
+/* ---------- Shop ---------- */
+.shop-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.shop-item { align-items: center; text-align: center; }
+.shop-item h3 { font-size: 22px; }
+.shop-item.on { outline: 5px solid var(--leaf); outline-offset: -5px; }
+.preview { display: grid; grid-template-columns: repeat(4, 1fr); width: 128px; height: 128px; border-radius: 12px; overflow: hidden; box-shadow: 0 0 0 3px var(--ink); }
+.preview i { display: block; background-size: 90%; background-position: center; background-repeat: no-repeat; }
+.big-preview .preview { width: 180px; height: 180px; }
+.tag { display: inline-block; padding: 4px 14px; border-radius: 999px; background: var(--sky-deep); font-weight: 800; font-size: 16px; }
+.tag.on { background: var(--leaf); color: #fff; }
+.tag.price { background: var(--sun); color: var(--ink); }
+.tag.price.short { background: #EDF3F8; color: var(--ink-soft); }
+
+/* ---------- Quick games ---------- */
+.sq-name { font-family: var(--font-display); font-size: 1.6em; color: var(--sea-deep); }
+.robot.friend .emo { font-size: 50px; }
+.dot.found { width: 38%; height: 38%; background: var(--leaf); box-shadow: 0 0 0 4px rgba(255, 255, 255, .8); animation: dotpop .3s cubic-bezier(.3,1.6,.6,1); }
+@keyframes dotpop { from { transform: translate(-50%,-50%) scale(.4); } }

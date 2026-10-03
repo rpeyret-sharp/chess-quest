@@ -69,7 +69,7 @@
       this.render();
     }
 
-    // marks: {last:[from,to], check:sq, stars:[sq], hint:[sq], arrows:[[from,to]], wrong:sq}
+    // marks: {last:[from,to], check:sq, stars:[sq], hint:[sq], dots:[sq], arrows:[[from,to]], wrong:sq}
     set(pos, marks, animate) {
       this.pos = pos;
       this.marks = marks || {};
@@ -100,6 +100,7 @@
         if (m.stars && m.stars.includes(s)) html += `<div class="star">${STAR_SVG}</div>`;
         if (p) html += `<div class="piece" style="background-image:url('${root.Pieces.uri(p)}')"></div>`;
         if (targets.has(s)) html += `<div class="${captureTargets.has(s) ? 'ring' : 'dot'}"></div>`;
+        else if (m.dots && m.dots.includes(s)) html += '<div class="dot found"></div>';
         el.innerHTML = html;
         el.classList.toggle('last', !!(m.last && m.last.includes(s)));
         el.classList.toggle('sel', s === this.selected);
@@ -162,6 +163,8 @@
       const s = this.squareAt(e);
       if (s < 0) return;
       e.preventDefault();
+      // Drills: any square can be tapped, and nothing moves.
+      if (this.opts.onTap) { this.opts.onTap(s); return; }
       this.downSq = s;
       this.tapTarget = -1;
       this.wasSelected = false;

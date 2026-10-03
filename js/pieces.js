@@ -2,10 +2,15 @@
 (function (root) {
   'use strict';
 
-  const PAL = {
-    w: { fill: '#FFFDF7', line: '#2B2A33', detail: '#2B2A33', shade: '#E9E2D2' },
-    b: { fill: '#34323F', line: '#16151C', detail: '#F1EEE6', shade: '#4A4757' },
+  // Piece colour sets (bought in the Shop). White pieces stay light and Black dark, so the sides are clear.
+  const SETS = {
+    classic: { w: { fill: '#FFFDF7', line: '#2B2A33', detail: '#2B2A33' }, b: { fill: '#34323F', line: '#16151C', detail: '#F1EEE6' } },
+    candy: { w: { fill: '#FFF0F7', line: '#6A2B53', detail: '#6A2B53' }, b: { fill: '#B23F82', line: '#5A163F', detail: '#FFE3F1' } },
+    ocean: { w: { fill: '#F0FAFF', line: '#1B3A57', detail: '#1B3A57' }, b: { fill: '#1F5F99', line: '#0C2A47', detail: '#DDF2FF' } },
+    forest: { w: { fill: '#F6FBEF', line: '#24401F', detail: '#24401F' }, b: { fill: '#2E6B3A', line: '#123519', detail: '#E6F5DA' } },
+    royal: { w: { fill: '#FFE7A3', line: '#6B4A00', detail: '#6B4A00' }, b: { fill: '#5B3A8C', line: '#2C1650', detail: '#FFE7A3' } },
   };
+  let PAL = SETS.classic;
 
   function shapes(type, c) {
     const s = `fill="${c.fill}" stroke="${c.line}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"`;
@@ -44,17 +49,21 @@
     return '';
   }
 
-  function svg(code) {
-    const c = PAL[code[0]];
+  function svg(code, set) {
+    const c = (set ? SETS[set] : PAL)[code[0]];
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45">${shapes(code[1], c)}</svg>`;
   }
 
+  const toUri = (code, set) => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg(code, set));
   const URIS = {};
-  for (const color of ['w', 'b']) for (const t of 'PNBRQK') {
-    URIS[color + t] = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg(color + t));
+  function useSet(name) {
+    PAL = SETS[name] || SETS.classic;
+    for (const color of ['w', 'b']) for (const t of 'PNBRQK') URIS[color + t] = toUri(color + t);
   }
+  useSet('classic');
 
-  const api = { svg, uri: (code) => URIS[code] };
+  // uri(code, set) draws a piece from another set, for Shop previews.
+  const api = { SETS, svg, useSet, uri: (code, set) => (set ? toUri(code, set) : URIS[code]) };
   root.Pieces = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

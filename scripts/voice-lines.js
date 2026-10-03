@@ -14,7 +14,7 @@ const UNKNOWN = 'QQUNKNOWNQQ';
 
 function fills(names) {
   return {
-    'bot.name': A.BOTS.map((b) => b.name),
+    'bot.name': A.BOTS.map((b) => b.name).concat('Friend'),
     "theme.title.replace(/!$/, '')": P.THEMES.map((t) => t.title.replace(/!$/, '')),
     'themeLevel(puzzle.themeId)': ['2', '3', '4'],
     'S.name': names,

@@ -25,7 +25,7 @@ for (const lesson of LESSONS) {
 }
 
 let puzzles = 0;
-for (const theme of P.THEMES) {
+for (const theme of P.THEMES.filter((t) => !t.lichess)) {
   for (const level of [1, 2, 3, 4]) {
     for (let seed = 1; seed <= (theme.id === 'capture' || theme.id === 'check' ? 300 : 30); seed++) {
       const pz = P.makePuzzle(theme.id, level, seed);
@@ -63,4 +63,47 @@ for (const theme of P.THEMES) {
     }
   }
 }
-console.log(`content: ${stages} lesson stages and ${puzzles} puzzles verified`);
+// Lichess puzzles: Black's move and White's whole line must be legal, Black's replies must not be
+// mate-ending surprises, and back-rank puzzles must end in checkmate.
+const LP = require('../js/lichess-puzzles.js');
+let lichess = 0;
+for (const theme of P.THEMES.filter((t) => t.lichess)) {
+  assert.strictEqual(LP[theme.id].length, 4, `${theme.id}: needs 4 levels`);
+  LP[theme.id].forEach((list, i) => {
+    assert(list.length >= 10, `${theme.id} level ${i + 1}: only ${list.length} puzzles`);
+    for (let n = 0; n < list.length; n++) {
+      const pz = P.makePuzzle(theme.id, i + 1, n);
+      assert.strictEqual(pz.id, `lichess-${list[n][0]}`);
+      let pos = C.parseFEN(pz.fen);
+      assert.strictEqual(pos.turn, 'w', `${pz.id}: White must be to move`);
+      assert(pz.solutions[0], `${pz.id}: first move is not legal`);
+      for (const u of pz.line) {
+        const m = C.fromUCI(pos, u);
+        assert(m, `${pz.id}: ${u} is not legal`);
+        pos = C.makeMove(pos, m);
+      }
+      if (theme.id === 'backRank') assert(C.inCheck(pos) && !C.legalMoves(pos).length, `${pz.id}: should end in checkmate`);
+      if (theme.id === 'promote') assert(pz.line.some((u, k) => k % 2 === 0 && u.length === 5), `${pz.id}: no promotion`);
+      assert.strictEqual(P.lichessById(list[n][0]).fen, pz.fen, `${pz.id}: lookup by ID`);
+      assert.deepStrictEqual(P.parseId(pz.id), { lichess: list[n][0] });
+      lichess++;
+    }
+  });
+}
+
+// Quick games: Where Can It Go? boards always have something to find.
+const D = require('../js/drills.js');
+const rnd = P.mulberry32(7);
+let drills = 0;
+for (let i = 0; i < 400; i++) {
+  const b = D.reachBoard(rnd, i % D.REACH_ROUNDS);
+  assert(b && b.targets.length >= 2, 'reach board needs at least two squares');
+  const pos = C.parseFEN(b.fen);
+  assert.strictEqual(pos.board[b.from], 'w' + b.type);
+  for (const s of b.targets) assert(!pos.board[s] || pos.board[s][0] === 'b', 'target must be empty or an enemy piece');
+  drills++;
+}
+const hunt = D.huntSquares(rnd);
+assert.strictEqual(new Set(hunt).size, D.HUNT_ROUNDS);
+
+console.log(`content: ${stages} lesson stages, ${puzzles} generated puzzles, ${lichess} Lichess puzzles and ${drills} drill boards verified`);

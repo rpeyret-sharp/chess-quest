@@ -4,8 +4,30 @@ const P = require('../js/puzzles.js');
 
 const id = process.argv[2];
 const parsed = P.parseId(id || '');
+const glyph = (p) => (p ? (p[0] === 'w' ? p[1] : p[1].toLowerCase()) : '.');
+function draw(pos) {
+  for (let r = 7; r >= 0; r--) {
+    let row = `${r + 1} `;
+    for (let f = 0; f < 8; f++) row += glyph(pos.board[r * 8 + f]) + ' ';
+    console.log(row);
+  }
+  console.log('  a b c d e f g h   (White = capitals, White to move)\n');
+}
+if (parsed && parsed.lichess) {
+  const pz = P.lichessById(parsed.lichess);
+  if (!pz) { console.error(`No puzzle ${id} in js/lichess-puzzles.js`); process.exit(1); }
+  const pos = C.parseFEN(pz.fen);
+  draw(pos);
+  console.log(`ID:       ${pz.id} (Lichess rating ${pz.rating})`);
+  console.log(`Theme:    ${P.THEME[pz.themeId].title}, level ${pz.level}`);
+  console.log(`Prompt:   ${pz.prompt}`);
+  console.log(`FEN:      ${pz.fen}   (after Black's move ${pz.setup})`);
+  console.log(`Line:     ${pz.line.join(' ')}   (White, Black, White…; any checkmate also wins)`);
+  console.log(`Lichess:  https://lichess.org/training/${parsed.lichess}  (shown from the other side if Lichess has you playing Black)`);
+  process.exit(0);
+}
 if (!parsed || !P.THEME[parsed.themeId]) {
-  console.error('Usage: node scripts/show-puzzle.js <puzzle-id>   (for example check-2-200005-v3)');
+  console.error('Usage: node scripts/show-puzzle.js <puzzle-id>   (for example check-2-200005-v3 or lichess-8UBk3)');
   process.exit(1);
 }
 if (parsed.version && parsed.version !== P.VERSION) {
@@ -14,13 +36,7 @@ if (parsed.version && parsed.version !== P.VERSION) {
 }
 const pz = P.makePuzzle(parsed.themeId, parsed.level, parsed.seed);
 const pos = C.parseFEN(pz.fen);
-const glyph = (p) => (p ? (p[0] === 'w' ? p[1] : p[1].toLowerCase()) : '.');
-for (let r = 7; r >= 0; r--) {
-  let row = `${r + 1} `;
-  for (let f = 0; f < 8; f++) row += glyph(pos.board[r * 8 + f]) + ' ';
-  console.log(row);
-}
-console.log('  a b c d e f g h   (White = capitals, White to move)\n');
+draw(pos);
 const name = (m) => `${m.piece[1]}${C.sqName(m.from)}${m.captured ? 'x' : '-'}${C.sqName(m.to)}`;
 console.log(`ID:       ${pz.id}`);
 console.log(`Theme:    ${P.THEME[pz.themeId].title}, level ${pz.level}`);

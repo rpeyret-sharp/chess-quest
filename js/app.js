@@ -1,7 +1,7 @@
 /* Chess Quest app: screens, progress, rewards, sound and read-aloud. */
 (function () {
   'use strict';
-  const C = window.Chess, A = window.ChessAI, P = window.Puzzles, St = window.Stage;
+  const C = window.Chess, A = window.ChessAI, P = window.Puzzles, St = window.Stage, D = window.Drills;
   const LESSONS = window.Lessons.LESSONS;
   const app = document.getElementById('app');
   const $ = (sel, el) => (el || document).querySelector(sel);
@@ -12,17 +12,23 @@
   // ---------------------------------------------------------------- progress
   const KEY = 'chess-quest-v1';
   const DEFAULTS = () => ({
-    name: '', stars: 0, welcomed: false, puzzlesSolved: 0,
+    // stars: what she can spend in the Shop. earned: every star ever won (stickers count these).
+    name: '', stars: 0, earned: 0, welcomed: false, puzzlesSolved: 0,
     lessons: {}, themes: {}, games: {},
     daily: { date: '', list: [], done: 0 },
     streak: { count: 0, last: '' },
     play: { bot: 'chick', variant: 'chess', side: 'r' },
-    history: [],
+    history: [], taught: {},
+    owned: { board: ['garden'], pieces: ['classic'] },
+    look: { board: 'garden', pieces: 'classic' },
+    drills: { date: '', stars: 0, best: {} },
     settings: { sound: true, voice: true, muted: false, overSilent: true, dots: true, unlockAll: false, hintWait: 20 },
   });
   function hydrate(d) {
     const s = Object.assign(DEFAULTS(), d);
-    for (const k of ['daily', 'streak', 'play', 'settings']) s[k] = Object.assign(DEFAULTS()[k], d[k] || {});
+    for (const k of ['daily', 'streak', 'play', 'settings', 'owned', 'look', 'drills']) s[k] = Object.assign(DEFAULTS()[k], d[k] || {});
+    // Saves from before the Shop: every star so far was earned.
+    if (typeof d.earned !== 'number') s.earned = s.stars;
     // 'color' was the old fixed White/Black pick; 'side' replaced it so everyone starts on Random.
     delete s.play.color;
     return s;
@@ -43,17 +49,44 @@
   const STICKERS = ['🐶', '🐱', '🦊', '🐼', '🐨', '🦁', '🐯', '🐸', '🐵', '🦄', '🐙', '🦋', '🐢', '🦉', '🐧', '🐬', '🦖', '🐝', '🐞', '🦒',
     '🐘', '🦓', '🐰', '🐹', '🦔', '🐳', '🦜', '🦩', '🦦', '🐲', '🌈', '🚀', '🍦', '🎈', '🧁', '🌻', '🍉', '🏰', '👑', '🏆'];
   const stickerCost = (i) => 5 + i * 10;
-  const stickerCount = () => STICKERS.filter((_, i) => S.stars >= stickerCost(i)).length;
+  const stickerCount = () => STICKERS.filter((_, i) => S.earned >= stickerCost(i)).length;
 
   function addStars(n) {
     if (n <= 0) return;
     const before = stickerCount();
     S.stars += n;
+    S.earned += n;
     save();
     document.querySelectorAll('.star-count').forEach((el) => { el.textContent = S.stars; });
     const after = stickerCount();
     if (after > before) setTimeout(() => { toast(`<span class="emo">${STICKERS[after - 1]}</span> You got a new sticker!`); say('You got a new sticker!'); }, 1400);
   }
+
+  // ---------------------------------------------------------------- shop
+  // Board colours and piece sets she can buy with stars. The first of each is free.
+  const BOARDS = [
+    { id: 'garden', name: 'Garden', light: '#EEF0D5', dark: '#7DA35E', cost: 0 },
+    { id: 'ocean', name: 'Ocean', light: '#E3F1FA', dark: '#5B9BD5', cost: 20 },
+    { id: 'candy', name: 'Candy', light: '#FCE8F1', dark: '#E58FB6', cost: 30 },
+    { id: 'sunset', name: 'Sunset', light: '#FDF0D5', dark: '#E8945A', cost: 40 },
+    { id: 'lavender', name: 'Lavender', light: '#EFE8F8', dark: '#9C82C9', cost: 50 },
+    { id: 'chocolate', name: 'Chocolate', light: '#F3E3CC', dark: '#A87652', cost: 60 },
+    { id: 'night', name: 'Starry Night', light: '#D9DEE8', dark: '#4F5D7A', cost: 80 },
+  ];
+  const PIECE_SETS = [
+    { id: 'classic', name: 'Classic', cost: 0 },
+    { id: 'candy', name: 'Candy', cost: 40 },
+    { id: 'ocean', name: 'Ocean', cost: 60 },
+    { id: 'forest', name: 'Forest', cost: 80 },
+    { id: 'royal', name: 'Royal', cost: 100 },
+  ];
+  function applyLook() {
+    const b = BOARDS.find((x) => x.id === S.look.board) || BOARDS[0];
+    document.documentElement.style.setProperty('--sq-light', b.light);
+    document.documentElement.style.setProperty('--sq-dark', b.dark);
+    window.Pieces.useSet(S.look.pieces);
+  }
+  applyLook();
 
   // ---------------------------------------------------------------- sound
   const Sound = {
@@ -379,8 +412,10 @@
       <div class="tiles">
         <button class="tile learn" type="button" data-act="learn"><span class="art">${img('wR')}${img('wN')}</span><b>Learn</b><small>${lessonsDone} of ${LESSONS.length} lessons done</small></button>
         <button class="tile puzzles" type="button" data-act="puzzles"><span class="art">${img('wQ')}${img('bK')}</span><b>Puzzles</b><small>${openThemes} of ${P.THEMES.length} puzzle types open</small></button>
-        <button class="tile play" type="button" data-act="play"><span class="art"><span class="emo">${A.BOTS.find((b) => b.id === S.play.bot).emoji}</span>${img('bP')}</span><b>Play</b><small>Play a game against a robot</small></button>
+        <button class="tile play" type="button" data-act="play"><span class="art"><span class="emo">${botById(S.play.bot).emoji}</span>${img('bP')}</span><b>Play</b><small>Play a robot or a grown-up</small></button>
+        <button class="tile drills" type="button" data-act="drills"><span class="art"><span class="emo">⚡</span></span><b>Quick Games</b><small>Find squares, spot moves</small></button>
         <button class="tile stickers" type="button" data-act="stickers"><span class="art"><span class="emo">${stickerCount() ? STICKERS[stickerCount() - 1] : '📒'}</span></span><b>Stickers</b><small>${stickerCount()} of ${STICKERS.length} collected</small></button>
+        <button class="tile shop" type="button" data-act="shop"><span class="art"><span class="emo">🛍️</span></span><b>Shop</b><small>Spend stars on boards and pieces</small></button>
       </div>
       <button class="grownups-btn" type="button" data-act="grownups"><span class="fill"></span>Grown-ups: press and hold</button>
     `);
@@ -393,6 +428,8 @@
       else if (act === 'puzzles') screenPuzzles();
       else if (act === 'play') screenPlaySetup();
       else if (act === 'stickers') screenStickers();
+      else if (act === 'drills') screenDrills();
+      else if (act === 'shop') screenShop();
     });
     holdButton($('[data-act="grownups"]', el), () => grownupGate(screenGrownups));
     if (!S.welcomed) welcome();
@@ -538,7 +575,7 @@
         talk,
         solved(mistakes) { lessonHints.stop(); finish(Math.max(1, 3 - mistakes - hintsUsed)); },
       });
-      const lessonHints = hintButton($('[data-act="hint"]', actions), { onUse(n) { hintsUsed = n; runner.hint(n); } });
+      const lessonHints = hintButton($('[data-act="hint"]', actions), { onUse(n) { if (runner.hint(n) === false) return false; hintsUsed = n; } });
       board = runner.board;
       talk(intro + stage.say);
     } else {
@@ -606,16 +643,30 @@
 
   function puzzleRunner(boardEl, puzzle, hooks) {
     const goal = P.GOALS[puzzle.goal];
+    const lined = puzzle.goal === 'line';
     const start = C.parseFEN(puzzle.fen);
     let pos = start, step = 0, mistakes = 0, done = false, timer = null;
     const board = new window.Board(boardEl, { showDots: S.settings.dots, movable: () => 'w', onMove, onIllegal });
-    board.set(pos, { check: checkSq(pos) });
+    if (puzzle.before) {
+      // Lichess puzzles start with Black's last move, so she sees what just happened.
+      const before = C.parseFEN(puzzle.before), m = C.fromUCI(before, puzzle.setup);
+      board.set(before, {});
+      board.locked = true;
+      timer = setTimeout(() => {
+        Sound.forMove(m, start);
+        board.set(start, { last: [m.from, m.to], check: checkSq(start) }, m);
+        board.locked = false;
+      }, 900);
+    } else board.set(pos, { check: checkSq(pos) });
     hooks.talk(puzzle.prompt);
 
-    const solutions = () => (step === 0 ? puzzle.solutions : C.legalMoves(pos).filter((m) => P.isMate(pos, m)));
+    // The move the puzzle wants now (Lichess line), or every move that does the job.
+    const wanted = () => C.fromUCI(pos, puzzle.line[step]);
+    const solutions = () => (lined ? [wanted()] : step === 0 ? puzzle.solutions : C.legalMoves(pos).filter((m) => P.isMate(pos, m)));
 
     function onMove(m) {
       if (done) return;
+      if (lined) return onLineMove(m);
       const ok = step === 0 ? goal.test(pos, m) : P.isMate(pos, m);
       if (!ok) {
         mistakes++;
@@ -648,6 +699,40 @@
       setTimeout(() => hooks.solved(mistakes), 250);
     }
 
+    function onLineMove(m) {
+      if (!goal.test(pos, m, wanted())) {
+        mistakes++;
+        board.shake(m.from);
+        Sound.bad();
+        hooks.talk(goal.wrong(pos, m), 'oops');
+        return;
+      }
+      const mate = P.isMate(pos, m);
+      const next = C.makeMove(pos, m);
+      Sound.forMove(m, next);
+      board.set(next, { last: [m.from, m.to], check: checkSq(next), good: m.to }, m);
+      pos = next;
+      step++;
+      if (mate || step >= puzzle.line.length) {
+        done = true;
+        board.locked = true;
+        setTimeout(() => hooks.solved(mistakes), 250);
+        return;
+      }
+      board.locked = true;
+      hooks.talk('Good move! Now watch Black…', 'good', false);
+      timer = setTimeout(() => {
+        const r = wanted();
+        const after = C.makeMove(pos, r);
+        Sound.forMove(r, after);
+        board.set(after, { last: [r.from, r.to], check: checkSq(after) }, r);
+        pos = after;
+        step++;
+        board.locked = false;
+        hooks.talk('Keep going! Find the next move.');
+      }, 900);
+    }
+
     function onIllegal(from, to, why) {
       if (done) return;
       board.shake(from);
@@ -660,8 +745,9 @@
 
     // n = 1: highlight the piece to move. n = 2: show the whole move.
     function hint(n) {
+      if (done || board.locked) return false; // Black is moving: no charge
       const sols = solutions();
-      if (!sols.length || done) return;
+      if (!sols.length) return false;
       if (n === 1) {
         board.setMarks({ hint: [...new Set(sols.map((m) => m.from))], arrows: [] });
         hooks.talk('Here is a clue: move this piece.');
@@ -695,6 +781,7 @@
   }
   // Rebuild from the saved position, so a replay is exact even after puzzle generators change.
   function puzzleFromHistory(h) {
+    if (h.goal === 'line') return P.lichessById(h.id.replace(/^lichess-/, ''));
     const pos = C.parseFEN(h.fen);
     return { id: h.id, themeId: h.theme, level: h.level, seed: h.seed, goal: h.goal, fen: h.fen, prompt: P.GOALS[h.goal].prompt, solutions: P.solutionsFor(pos, h.goal) };
   }
@@ -846,9 +933,9 @@
       used: carry.hints,
       cost: firstSolve,
       onUse(n) {
+        if (runner.hint(n) === false) return false;
         carry.hints = n;
         logPuzzle(puzzle, { hints: Math.max(hist.hints || 0, n) });
-        runner.hint(n);
         info();
       },
     });
@@ -870,6 +957,16 @@
       }
     });
     cleanup = () => { runner.destroy(); hints.stop(); };
+    if (theme.teach && !S.taught[theme.id]) teachTheme(theme);
+  }
+
+  // The first time she meets a tactics type, Pip explains the idea.
+  function teachTheme(theme) {
+    S.taught[theme.id] = true;
+    save();
+    const o = overlay(`${PIP_FULL}<h2>${theme.icon} ${theme.title}</h2><p>${theme.teach}</p>
+      <div class="row"><button class="btn green" type="button" data-act="ok">Got it!</button></div>`, () => { o.remove(); say(theme.prompt); });
+    say(theme.teach);
   }
 
   function dailyComplete() {
@@ -945,12 +1042,17 @@
       else if (b.dataset.act === 'more') screenHistory(filter, shown + 24);
       else if (b.dataset.id) {
         const h = historyOf(b.dataset.id);
-        if (h) screenPuzzle(puzzleFromHistory(h), { kind: 'replay' });
+        const pz = h && puzzleFromHistory(h);
+        if (pz) screenPuzzle(pz, { kind: 'replay' });
       }
     });
   }
 
   // ================================================================ PLAY
+  // Two players taking turns on the iPad: a grown-up or a friend. Just for fun, so no stars.
+  const FRIEND = { id: 'friend', name: 'Friend', emoji: '🧑', blurb: 'Take turns with a grown-up or a friend on this iPad.', stars: 0 };
+  const botById = (id) => (id === 'friend' ? FRIEND : A.BOTS.find((b) => b.id === id) || A.BOTS[0]);
+
   function screenPlaySetup() {
     const p = S.play;
     // Leaving a game saves it in its cleanup; run that first so the game is listed.
@@ -958,12 +1060,14 @@
     const render = () => {
       const gamesBtn = (S.gameLog || []).length ? '<button class="btn ghost small" type="button" data-act="games">📜 My games</button>' : '';
       const el = show(`${topbar('Play', gamesBtn)}
-        <h3 class="section-title">Pick a robot</h3>
+        <h3 class="section-title">Pick a robot, or play a person</h3>
         <div class="grid">${A.BOTS.map((b) => {
           const g = S.games[b.id] || { won: 0, played: 0 };
           return `<button class="card robot ${p.bot === b.id ? 'on' : ''}" type="button" data-bot="${b.id}"><span class="emo">${b.emoji}</span><h3>${b.name}</h3><p>${b.blurb}</p>
             <div class="meta">🏆 ${g.won} win${g.won === 1 ? '' : 's'} · ${STAR} ${b.stars} per win</div></button>`;
-        }).join('')}</div>
+        }).join('')}
+          <button class="card robot friend ${p.bot === 'friend' ? 'on' : ''}" type="button" data-bot="friend"><span class="emo">🧑‍🤝‍🧑</span><h3>Two players</h3><p>${FRIEND.blurb}</p>
+            <div class="meta">Just for fun: no stars</div></button></div>
         <h3 class="section-title">Game</h3>
         <div class="options">
           <div class="toggle" role="group" aria-label="Game type">
@@ -1010,7 +1114,8 @@
 
   function screenGame() {
     const cfg = S.play;
-    const bot = A.BOTS.find((b) => b.id === cfg.bot);
+    const friend = cfg.bot === 'friend';
+    const bot = botById(cfg.bot);
     const you = cfg.side === 'w' || cfg.side === 'b' ? cfg.side : rand(['w', 'b']);
     const variant = cfg.variant;
     const pawns = variant === 'pawns';
@@ -1062,8 +1167,8 @@
     function showTurn(who) {
       botCard.classList.toggle('turn', who === 'bot');
       youCard.classList.toggle('turn', who === 'you');
-      botCard.classList.toggle('thinking', who === 'bot');
-      botState.textContent = who === 'bot' ? 'Thinking…' : who === 'you' ? 'Waiting for you' : 'Game over';
+      botCard.classList.toggle('thinking', who === 'bot' && !friend);
+      botState.textContent = who === 'bot' ? (friend ? 'Their turn!' : 'Thinking…') : who === 'you' ? 'Waiting for you' : 'Game over';
       youState.textContent = who === 'you' ? 'Your turn!' : who === 'bot' ? `Wait for ${bot.name}…` : 'Game over';
     }
 
@@ -1113,6 +1218,13 @@
     }
 
     function botTurn() {
+      if (friend) {
+        board.locked = false;
+        showTurn('bot');
+        if (!pawns && C.inCheck(cur())) talk('Check! Keep your king safe.', 'oops', false);
+        else talk(`${colourName(C.other(you))} to move. Your friend’s turn!`, '', false);
+        return;
+      }
       board.locked = true;
       showTurn('bot');
       talk(`${bot.name} is thinking…`, '', false);
@@ -1146,7 +1258,15 @@
 
     function endOverlay(r) {
       let html, stars = 0;
-      if (r.winner === you) {
+      if (friend) {
+        const winner = r.winner === you ? youName : r.winner ? bot.name : '';
+        const why = r.winner ? (pawns ? 'The pawns won the race!' : 'Checkmate!') : DRAW_TEXT[r.reason] || '';
+        html = r.winner === you ? `${ME('happy')}<h2>You won!</h2><p>${why} Great game!</p>`
+          : r.winner ? `<div class="big-emo">🧑</div><h2>${winner} won!</h2><p>${why} Great game!</p>`
+          : `<div class="big-emo">🤝</div><h2>It’s a draw!</h2><p>${why}</p>`;
+        if (r.winner === you) { Sound.win(); confetti(220); say('You won! Great game!'); }
+        else say(r.winner ? 'Great game! Play again?' : `It's a draw! ${DRAW_TEXT[r.reason] || ''}`);
+      } else if (r.winner === you) {
         stars = Math.max(1, (pawns ? Math.max(1, bot.stars - 1) : bot.stars) - gameHints.used);
         const why = pawns ? 'Your pawns won the race!' : 'Checkmate! The king cannot escape.';
         const hintNote = gameHints.used ? `<p>${gameHints.used} hint${gameHints.used === 1 ? '' : 's'} used: −${gameHints.used} ${STAR}</p>` : '';
@@ -1164,10 +1284,11 @@
         say(`It's a draw! ${DRAW_TEXT[r.reason] || ''}`);
       }
       talk(r.winner === you ? 'You won!' : r.winner ? `${bot.name} won.` : 'It’s a draw!', r.winner === you ? 'good' : '', false);
+      if (friend) stars = 0;
       if (stars && !r.paid) { r.paid = true; addStars(stars); }
-      const lost = r.winner && r.winner !== you;
+      const lost = !friend && r.winner && r.winner !== you;
       const o = overlay(`${html}<div class="row">${lost ? '<button class="btn blue" type="button" data-act="undo">↶ Take back</button>' : ''}
-        <button class="btn green" type="button" data-act="again">Play again</button><button class="btn plum" type="button" data-act="review">🔍 Review game</button><button class="btn ghost" type="button" data-act="setup">Choose robot</button></div>`, (act) => {
+        <button class="btn green" type="button" data-act="again">Play again</button><button class="btn plum" type="button" data-act="review">🔍 Review game</button><button class="btn ghost" type="button" data-act="setup">${friend ? 'Back' : 'Choose robot'}</button></div>`, (act) => {
         o.remove();
         if (act === 'again') screenGame();
         else if (act === 'review') screenReview(gid);
@@ -1180,10 +1301,11 @@
       if (timer) { clearTimeout(timer); timer = null; }
       if (hist.length <= 1) return;
       over = null;
+      // Against a person, take back one move. Against a robot, go back to her own turn.
       while (hist.length > 1) {
         hist.pop();
         played.pop();
-        if (cur().turn === you) break;
+        if (friend || cur().turn === you) break;
       }
       refresh();
       Sound.move();
@@ -1191,11 +1313,11 @@
     }
 
     const board = new window.Board($('#board', el), {
-      orientation: you, showDots: S.settings.dots, movable: () => (over ? null : you),
+      orientation: you, showDots: S.settings.dots, movable: () => (over ? null : friend ? cur().turn : you),
       onMove(m) {
-        if (over || cur().turn !== you) return;
+        if (over || (!friend && cur().turn !== you)) return;
         apply(m);
-        if (!checkEnd()) botTurn();
+        if (!checkEnd()) { if (cur().turn === you) yourTurn(); else botTurn(); }
       },
       onIllegal(from, to, why) {
         board.shake(from);
@@ -1214,10 +1336,12 @@
     });
 
     // Up to 3 hints a game, each taking one star off a win (a win always earns at least 1).
+    // Against a person, hints are free for both players.
     const gameHints = hintButton($('[data-act="hint"]', el), {
       max: 3,
+      cost: !friend,
       onUse() {
-        if (over || cur().turn !== you || board.locked) return false;
+        if (over || (!friend && cur().turn !== you) || board.locked) return false;
         const m = A.hintMove(cur(), hist.map(C.posKey));
         if (!m) return false;
         board.setMarks({ arrows: [[m.from, m.to]] });
@@ -1228,7 +1352,8 @@
 
     refresh();
     const sides = you === 'w' ? `You are White, so you go first.` : `You are Black. White goes first, so ${bot.name} starts.`;
-    say(`${pawns ? 'Pawn Battle! Get one of your pawns to the other side to win.' : `Let's play! Good luck against ${bot.name}.`} ${sides}`);
+    const hello = friend ? 'Two players! Take turns on the same iPad.' : `Let's play! Good luck against ${bot.name}.`;
+    say(`${pawns ? 'Pawn Battle! Get one of your pawns to the other side to win.' : hello} ${sides}`);
     if (cur().turn === you) yourTurn(); else botTurn();
     cleanup = () => {
       if (timer) clearTimeout(timer);
@@ -1301,7 +1426,7 @@
       <p class="lead">Your last ${list.length} game${list.length === 1 ? '' : 's'}. Tap one to replay it and see which moves were best and which were blunders.</p>
       ${list.length ? '' : '<p class="lead">Play a game and it will appear here.</p>'}
       <div class="history">${list.map((g) => {
-        const bot = A.BOTS.find((b) => b.id === g.bot) || A.BOTS[0];
+        const bot = botById(g.bot);
         return `<button class="hcard gcard" type="button" data-id="${g.id}"><span class="g-emo">${bot.emoji}</span>
           <span class="hinfo"><b><span class="res res-${g.result}">${RESULT_TEXT[g.result] || ''}</span> vs ${bot.name}</b>
           <small>${g.variant === 'pawns' ? 'Pawn Battle' : 'Chess'} · ${g.color === 'w' ? 'White' : 'Black'} · ${Math.ceil(g.moves.length / 2)} moves · ${fmt(g.date)}</small>
@@ -1313,7 +1438,7 @@
   function screenReview(gid) {
     const g = (S.gameLog || []).find((x) => x.id === gid);
     if (!g) return screenGames();
-    const bot = A.BOTS.find((b) => b.id === g.bot) || A.BOTS[0];
+    const bot = botById(g.bot);
     const game = rebuildGame(g);
     let ply = 0, better = false, stop = null;
     const el = show(`${topbar(`${bot.emoji} Review vs ${bot.name}`, `<span class="chip">${RESULT_TEXT[g.result] || ''}</span>`)}
@@ -1415,10 +1540,200 @@
   function screenStickers() {
     const have = stickerCount();
     show(`${topbar('Sticker Book')}
-      <p class="lead">${have < STICKERS.length ? `Next sticker at ${stickerCost(have)} stars. You have ${S.stars}!` : 'You collected every sticker. Superstar!'}</p>
+      <p class="lead">${have < STICKERS.length ? `Every star you win counts, even ones you spend in the Shop. Next sticker at ${stickerCost(have)} stars. You have won ${S.earned}!` : 'You collected every sticker. Superstar!'}</p>
       <div class="sticker-grid">${STICKERS.map((s, i) => (i < have
         ? `<div class="sticker" title="Sticker ${i + 1}">${s}</div>`
         : `<div class="sticker locked"><div><span>?</span>${STAR} ${stickerCost(i)}</div></div>`)).join('')}</div>`, screenHome);
+  }
+
+  // ================================================================ SHOP
+  function boardPreview(b, pieces) {
+    const layout = ['bR', null, 'bK', null, null, 'bP', null, null, null, null, 'wN', null, 'wQ', null, null, 'wK'];
+    return `<span class="preview">${layout.map((p, i) => {
+      const light = ((i >> 2) + (i & 3)) % 2 === 0;
+      return `<i style="background-color:${light ? b.light : b.dark}${p ? `;background-image:url('${window.Pieces.uri(p, pieces)}')` : ''}"></i>`;
+    }).join('')}</span>`;
+  }
+
+  function screenShop() {
+    const curBoard = BOARDS.find((b) => b.id === S.look.board) || BOARDS[0];
+    const item = (kind, it) => {
+      const owned = S.owned[kind].includes(it.id), on = S.look[kind] === it.id;
+      const preview = kind === 'board' ? boardPreview(it, S.look.pieces) : boardPreview(curBoard, it.id);
+      const tag = on ? '<span class="tag on">✓ Using</span>' : owned ? '<span class="tag">Tap to use</span>'
+        : `<span class="tag price ${S.stars >= it.cost ? '' : 'short'}">${STAR} ${it.cost}</span>`;
+      return `<button class="card shop-item ${on ? 'on' : ''}" type="button" data-kind="${kind}" data-id="${it.id}">${preview}<h3>${it.name}</h3>${tag}</button>`;
+    };
+    const el = show(`${topbar('Shop')}
+      <p class="lead">Spend your stars on new boards and pieces. Everything you buy is yours to keep!</p>
+      <h3 class="section-title">Boards</h3>
+      <div class="grid shop-grid">${BOARDS.map((b) => item('board', b)).join('')}</div>
+      <h3 class="section-title">Pieces</h3>
+      <div class="grid shop-grid">${PIECE_SETS.map((p) => item('pieces', p)).join('')}</div>`, screenHome);
+    el.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-kind]');
+      if (!b) return;
+      const kind = b.dataset.kind, list = kind === 'board' ? BOARDS : PIECE_SETS;
+      const it = list.find((x) => x.id === b.dataset.id);
+      const use = () => { S.look[kind] = it.id; save(); applyLook(); screenShop(); };
+      if (S.owned[kind].includes(it.id)) { if (S.look[kind] !== it.id) { use(); Sound.move(); } return; }
+      if (S.stars < it.cost) {
+        Sound.bad();
+        toast(`You need ${it.cost - S.stars} more ${STAR} for ${esc(it.name)}.`);
+        say('You need more stars for that one. Keep playing!');
+        return;
+      }
+      const o = overlay(`<div class="big-preview">${kind === 'board' ? boardPreview(it, S.look.pieces) : boardPreview(curBoard, it.id)}</div>
+        <h2>${esc(it.name)} ${kind === 'board' ? 'board' : 'pieces'}</h2><p>Buy it for ${it.cost} ${STAR}? You have ${S.stars} ${STAR}.</p>
+        <div class="row"><button class="btn ghost" type="button" data-act="no">Not now</button><button class="btn green" type="button" data-act="buy">Buy it!</button></div>`, (act) => {
+        o.remove();
+        if (act !== 'buy') return;
+        S.stars -= it.cost;
+        S.owned[kind].push(it.id);
+        use();
+        Sound.win();
+        confetti(160);
+        say('Ta-da! It is yours. Have fun with it!');
+      });
+      say('Do you want to buy this one?');
+    });
+  }
+
+  // ================================================================ QUICK GAMES (drills)
+  // Stars for drills stop after a few a day, so they stay a warm-up and not a star farm.
+  const DRILL_STARS_A_DAY = 6;
+  function drillStars(n) {
+    if (S.drills.date !== today()) S.drills = Object.assign(S.drills, { date: today(), stars: 0 });
+    const give = Math.max(0, Math.min(n, DRILL_STARS_A_DAY - S.drills.stars));
+    S.drills.stars += give;
+    save();
+    addStars(give);
+    return give;
+  }
+
+  function screenDrills() {
+    const best = S.drills.best.hunt;
+    const el = show(`${topbar('Quick Games')}
+      <p class="lead">Short games to make your chess eyes sharp. Each one you finish earns 2 ${STAR} (up to ${DRILL_STARS_A_DAY} a day).</p>
+      <div class="grid">
+        <button class="card" type="button" data-act="hunt"><span class="emo">🔍</span><h3>Square Hunt</h3><p>Every square has a name, like e4. Find ${D.HUNT_ROUNDS} squares as fast as you can!</p>
+          <div class="meta">${best ? `⏱️ Best time: ${best.toFixed(1)}s` : 'No best time yet'}</div></button>
+        <button class="card" type="button" data-act="reach"><span class="emo">👣</span><h3>Where Can It Go?</h3><p>Tap every square the piece can move to. Watch out for pieces in the way!</p>
+          <div class="meta">${D.REACH_ROUNDS} boards</div></button>
+      </div>`, screenHome);
+    el.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-act]');
+      if (!b) return;
+      if (b.dataset.act === 'hunt') screenHunt();
+      else if (b.dataset.act === 'reach') screenReach();
+    });
+  }
+
+  function drillDone(html, again, stars) {
+    const got = drillStars(stars == null ? 2 : stars);
+    Sound.win();
+    confetti(160);
+    const o = overlay(`${ME('happy')}${html}${got ? `<div class="big-stars">+${got} ${STAR}</div>` : '<p>No more stars from quick games today, but great practice!</p>'}
+      <div class="row"><button class="btn green" type="button" data-act="again">Play again</button><button class="btn ghost" type="button" data-act="back">More games</button></div>`, (act) => {
+      o.remove();
+      if (act === 'again') again(); else screenDrills();
+    });
+  }
+
+  function screenHunt() {
+    const squares = D.huntSquares(Math.random);
+    let i = 0, misses = 0, t0 = 0, tick = null;
+    const el = show(stageHTML('🔍 Square Hunt', '<span class="chip" id="clock">0.0s</span>'), screenDrills);
+    const talk = makeTalk(el);
+    const counter = $('#counter', el), clock = $('#clock', el);
+    $('#actions', el).innerHTML = `<button class="btn ghost small" type="button" data-act="restart">↺ Start over</button>`;
+    $('#actions', el).addEventListener('click', (e) => { if (e.target.closest('[data-act="restart"]')) screenHunt(); });
+    const board = new window.Board($('#board', el), {
+      showDots: false,
+      onTap(s) {
+        if (i >= squares.length) return;
+        if (!t0) { t0 = performance.now(); tick = setInterval(() => { clock.textContent = `${((performance.now() - t0) / 1000).toFixed(1)}s`; }, 100); }
+        if (s !== squares[i]) {
+          misses++;
+          board.shake(s);
+          Sound.bad();
+          talk(`That is ${C.sqName(s)}. Find <b class="sq-name">${C.sqName(squares[i])}</b>!`, 'oops', false);
+          return;
+        }
+        Sound.star();
+        board.setMarks({ good: s });
+        i++;
+        if (i < squares.length) return next();
+        clearInterval(tick);
+        const secs = (performance.now() - t0) / 1000;
+        const prev = S.drills.best.hunt;
+        const record = !prev || secs < prev;
+        if (record) { S.drills.best.hunt = secs; save(); }
+        clock.textContent = `${secs.toFixed(1)}s`;
+        talk(praise(), 'good', false);
+        setTimeout(() => drillDone(`<h2>${record ? 'New best time!' : 'All found!'}</h2><p>${D.HUNT_ROUNDS} squares in ${secs.toFixed(1)} seconds${misses ? `, with ${misses} wrong tap${misses === 1 ? '' : 's'}` : ''}.</p>`, screenHunt), 500);
+        say(record ? 'New best time! Brilliant!' : 'All found! Brilliant!');
+      },
+    });
+    board.set(C.parseFEN('8/8/8/8/8/8/8/8 w - - 0 1'), {});
+    function next() {
+      counter.innerHTML = `<span>Square ${i + 1} of ${D.HUNT_ROUNDS}</span>`;
+      talk(`Find <b class="sq-name">${C.sqName(squares[i])}</b>`, '', false);
+    }
+    next();
+    say('Find the square! The letter is at the bottom, and the number is on the side. The clock starts when you tap.');
+    cleanup = () => clearInterval(tick);
+  }
+
+  // helped: boards where she used "Show me" (then the drill pays 1 star, not 2).
+  function screenReach(round, helped) {
+    round = round || 0;
+    helped = helped || 0;
+    const rnd = Math.random;
+    const task = D.reachBoard(rnd, round);
+    const pos = C.parseFEN(task.fen);
+    const found = [];
+    let shown = false;
+    const dots = `<span class="stage-dots">${Array.from({ length: D.REACH_ROUNDS }, (_, j) => `<i class="${j < round ? 'on' : j === round ? 'cur' : ''}"></i>`).join('')}</span>`;
+    const el = show(stageHTML('👣 Where Can It Go?', dots), screenDrills);
+    const talk = makeTalk(el);
+    const counter = $('#counter', el);
+    $('#actions', el).innerHTML = `<button class="btn sun" type="button" data-act="show">💡 Show me</button>`;
+    const left = () => { counter.innerHTML = `<span>Found ${found.length} of ${task.targets.length}</span>`; };
+    const board = new window.Board($('#board', el), {
+      showDots: false,
+      onTap(s) {
+        if (shown || found.length === task.targets.length) return;
+        if (s === task.from) { talk(HOW[task.type], '', true); return; }
+        if (found.includes(s)) return;
+        if (!task.targets.includes(s)) {
+          board.shake(s);
+          Sound.bad();
+          talk(pos.board[s] && pos.board[s][0] === 'w' ? 'Your own piece is there, so it cannot go there.' : `Not that one. ${HOW[task.type]}`, 'oops');
+          return;
+        }
+        found.push(s);
+        Sound.star();
+        board.setMarks({ dots: found.slice() });
+        left();
+        if (found.length < task.targets.length) return;
+        talk(`${praise()} You found them all!`, 'good');
+        setTimeout(() => {
+          if (round + 1 < D.REACH_ROUNDS) screenReach(round + 1, helped);
+          else drillDone(`<h2>All ${D.REACH_ROUNDS} boards done!</h2><p>You know how the pieces move. Super!</p>`, () => screenReach(0), helped ? 1 : 2);
+        }, 1100);
+      },
+    });
+    board.set(pos, { hint: [task.from], dots: [] });
+    left();
+    $('#actions', el).addEventListener('click', (e) => {
+      if (!e.target.closest('[data-act="show"]')) return;
+      board.setMarks({ dots: task.targets.slice() });
+      talk('Here are all the squares. Try the next board!');
+      shown = true;
+      setTimeout(() => (round + 1 < D.REACH_ROUNDS ? screenReach(round + 1, helped + 1) : screenDrills()), 2200);
+    });
+    talk('Tap every square this piece can go to!');
   }
 
   // ================================================================ GROWN-UPS
@@ -1427,7 +1742,10 @@
     const gameRows = A.BOTS.map((b) => {
       const g = S.games[b.id] || { won: 0, played: 0 }, pg = S.games[b.id + '-pawns'] || { won: 0, played: 0 };
       return `<tr><td>${b.emoji} ${b.name}</td><td>${g.won}/${g.played} chess · ${pg.won}/${pg.played} pawn battle</td></tr>`;
-    }).join('');
+    }).join('') + (() => {
+      const g = S.games.friend || { won: 0, played: 0 }, pg = S.games['friend-pawns'] || { won: 0, played: 0 };
+      return `<tr><td>🧑‍🤝‍🧑 Two players</td><td>${g.won}/${g.played} chess · ${pg.won}/${pg.played} pawn battle</td></tr>`;
+    })();
     const el = show(`${topbar('Grown-ups')}
       <div class="settings">
         <section>
@@ -1447,7 +1765,8 @@
         <section>
           <h3>Progress</h3>
           <table>
-            <tr><td>Stars</td><td>${S.stars}</td></tr>
+            <tr><td>Stars to spend</td><td>${S.stars}</td></tr>
+            <tr><td>Stars won in all</td><td>${S.earned}</td></tr>
             <tr><td>Lessons finished</td><td>${lessonsDone} / ${LESSONS.length}</td></tr>
             <tr><td>Puzzles solved</td><td>${S.puzzlesSolved}</td></tr>
             ${P.THEMES.map((t) => `<tr><td>${t.icon} ${t.title}</td><td>${themeRec(t.id).solved} · level ${themeLevel(t.id)}</td></tr>`).join('')}
