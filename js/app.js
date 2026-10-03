@@ -120,12 +120,9 @@
   const hush = () => { try { speechSynthesis.cancel(); } catch (e) { /* none */ } };
 
   // ---------------------------------------------------------------- shared UI
-  const PIP = '<svg class="pip" viewBox="0 0 60 64" aria-hidden="true"><ellipse cx="30" cy="59" rx="19" ry="3.5" fill="rgba(34,49,74,.15)"/>' +
-    '<path d="M11 56c0-9 6-15.5 13-17.5-4.2-3-6.5-7-6.5-11.5 0-7 5.5-12.5 12.5-12.5s12.5 5.5 12.5 12.5c0 4.5-2.3 8.5-6.5 11.5 7 2 13 8.5 13 17.5z" fill="#fff" stroke="#22314A" stroke-width="2.6" stroke-linejoin="round"/>' +
-    '<path d="M20.5 39.5h19" stroke="#22314A" stroke-width="2.6" stroke-linecap="round"/>' +
-    '<circle cx="25" cy="26" r="2.8" fill="#22314A"/><circle cx="35" cy="26" r="2.8" fill="#22314A"/><circle cx="26" cy="25" r=".9" fill="#fff"/><circle cx="36" cy="25" r=".9" fill="#fff"/>' +
-    '<ellipse cx="21" cy="31.5" rx="2.6" ry="1.6" fill="#FF9AA2"/><ellipse cx="39" cy="31.5" rx="2.6" ry="1.6" fill="#FF9AA2"/>' +
-    '<path d="M26.5 31.5q3.5 3.2 7 0" stroke="#22314A" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>';
+  // Pip the pawn (img/pip*.webp): head and collar for the speech bubble, the whole pawn for big moments.
+  const PIP = '<img class="pip" src="img/pip-head.webp" alt="" draggable="false">';
+  const PIP_FULL = '<img class="pip full" src="img/pip.webp" alt="" draggable="false">';
   // Her own princess portrait (img/me-*.webp): face for small spots, smile for home, happy for wins.
   const ME_SRC = { face: 'img/me-face.webp', smile: 'img/me-smile.webp', happy: 'img/me-happy.webp' };
   const ME = (kind) => `<img class="me" src="${ME_SRC[kind]}" alt="" draggable="false">`;
@@ -355,7 +352,7 @@
   }
 
   function welcome() {
-    const o = overlay(`${PIP}<h2>Hi! I’m Pip.</h2><p>I’ll help you learn chess. What’s your name?</p>
+    const o = overlay(`${PIP_FULL}<h2>Hi! I’m Pip.</h2><p>I’ll help you learn chess. What’s your name?</p>
       <input class="name-input" id="name" type="text" maxlength="20" autocomplete="off" placeholder="Your name">
       <div class="row"><button class="btn green" type="button" data-act="go">Let’s go!</button></div>`, (act) => {
       if (act !== 'go') return;
