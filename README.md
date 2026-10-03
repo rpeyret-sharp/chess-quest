@@ -15,7 +15,7 @@ A chess learning app for a young beginner, built for the iPad. No accounts, no a
 - **My games and game review**: the last 50 games are saved (Play > My games). Replay any game move by move. Each of her moves is rated like on ChessKids: ★ Best, ✓ Good, ?! Inaccuracy, ? Mistake, ?? Blunder (including "missed a checkmate"), and for weaker moves **Show better move** draws her move in red and a better one in green. The game-over screen has a Review game button.
 - **Stickers**: 40 stickers to collect with stars.
 - **Pip the pawn** reads every instruction aloud in a natural recorded voice (tap Pip to hear it again), so she does not need to read fluently.
-- **Grown-ups** (press and hold the link at the bottom of the home screen, then answer a times-table question such as 7 × 8): name, sound, read-aloud, move dots, open all puzzle types, hint wait time, a progress summary, and a backup code to move progress between devices.
+- **Grown-ups** (press and hold the link at the bottom of the home screen, then answer a times-table question such as 7 × 8): name, sound effects, read-aloud, whether sound plays with the iPad on silent, move dots, open all puzzle types, hint wait time, a progress summary, and a backup code to move progress between devices.
 
 Wrong moves get a short explanation, such as "That piece is protected", "Check, but the king can escape" or "Stalemate! That's a draw", rather than just a buzzer.
 

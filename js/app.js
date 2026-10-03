@@ -18,7 +18,7 @@
     streak: { count: 0, last: '' },
     play: { bot: 'chick', variant: 'chess', side: 'r' },
     history: [],
-    settings: { sound: true, voice: true, dots: true, unlockAll: false, hintWait: 20 },
+    settings: { sound: true, voice: true, overSilent: true, dots: true, unlockAll: false, hintWait: 20 },
   });
   function hydrate(d) {
     const s = Object.assign(DEFAULTS(), d);
@@ -95,8 +95,10 @@
   };
   // iPadOS only lets sound start on a finger lift (touchend, click), not on the press, so listen for all of them.
   for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) document.addEventListener(ev, () => Sound.unlock(), { capture: true });
-  // Play like a media app, so the read-aloud voice is heard even with the iPad on silent.
-  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* not supported */ }
+  // 'playback' plays like a media app, so the read-aloud voice is heard even with the iPad on silent;
+  // 'auto' lets the silent switch mute the app. Grown-ups chooses.
+  const setAudioSession = () => { try { if (navigator.audioSession) navigator.audioSession.type = S.settings.overSilent ? 'playback' : 'auto'; } catch (e) { /* not supported */ } };
+  setAudioSession();
 
   // ---------------------------------------------------------------- voice
   // Sentences are pre-recorded with a natural voice (scripts/make-voice.js) and played through Web Audio.
@@ -1423,6 +1425,7 @@
           <input id="gname" type="text" maxlength="20" value="${esc(S.name)}" autocomplete="off">
           <label class="sw">Sound effects <input type="checkbox" id="s-sound" ${S.settings.sound ? 'checked' : ''}></label>
           <label class="sw">Read instructions aloud <input type="checkbox" id="s-voice" ${S.settings.voice ? 'checked' : ''}></label>
+          <label class="sw">Play sound when the iPad is on silent <input type="checkbox" id="s-silent" ${S.settings.overSilent ? 'checked' : ''}></label>
           <label class="sw">Show where pieces can move <input type="checkbox" id="s-dots" ${S.settings.dots ? 'checked' : ''}></label>
           <label class="sw">Open all puzzle types <input type="checkbox" id="s-unlock" ${S.settings.unlockAll ? 'checked' : ''}></label>
           <div class="sw-row"><span>Wait before each hint</span>
@@ -1458,7 +1461,9 @@
         </section>
       </div>`, screenHome);
     const bind = (id, key) => $(id, el).addEventListener('change', (e) => { S.settings[key] = e.target.checked; save(); });
-    bind('#s-sound', 'sound'); bind('#s-voice', 'voice'); bind('#s-dots', 'dots'); bind('#s-unlock', 'unlockAll');
+    bind('#s-sound', 'sound'); bind('#s-voice', 'voice'); bind('#s-silent', 'overSilent'); bind('#s-dots', 'dots'); bind('#s-unlock', 'unlockAll');
+    $('#s-voice', el).addEventListener('change', () => hush());
+    $('#s-silent', el).addEventListener('change', setAudioSession);
     $('#gname', el).addEventListener('input', (e) => { S.name = e.target.value.trim(); S.welcomed = true; save(); });
     const msg = $('#code-msg', el);
     let resetArmed = false;
