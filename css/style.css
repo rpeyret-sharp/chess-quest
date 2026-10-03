@@ -251,6 +251,14 @@ h1, h2, h3 { font-family: var(--font-display); line-height: 1.1; margin: 0; text
 .player b { font-family: var(--font-display); font-size: 24px; display: block; line-height: 1.1; }
 .player small { font-weight: 800; color: var(--ink-soft); font-size: 15px; }
 .player.thinking .face { animation: bob .6s ease-in-out infinite; }
+#botcard, #youcard { transition: opacity .2s, box-shadow .2s; opacity: .62; }
+#botcard.turn, #youcard.turn { opacity: 1; box-shadow: 0 0 0 4px var(--sun), 0 5px 0 4px var(--sun-deep); }
+#youcard.turn small { color: var(--leaf-deep); }
+.side { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px 4px 6px; border-radius: 99px; font-family: var(--font-display); font-weight: 800; font-size: 17px; }
+.side img { width: 30px; height: 30px; }
+.side-w { background: #F4F1E6; color: var(--ink); box-shadow: inset 0 0 0 2px #D8D2BC; }
+.side-b { background: var(--ink); color: #fff; }
+.side-b img { filter: drop-shadow(0 0 1.5px rgba(255,255,255,.9)); }
 @keyframes bob { 50% { transform: translateY(-5px) rotate(-6deg); } }
 .caps { display: flex; flex-wrap: wrap; align-items: center; min-height: 26px; }
 .caps img { width: 24px; height: 24px; margin-right: -6px; }
@@ -332,7 +340,8 @@ h1, h2, h3 { font-family: var(--font-display); line-height: 1.1; margin: 0; text
 .sw-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-weight: 800; }
 .toggle.small button { min-height: 40px; padding: 0 12px; font-size: 17px; }
 .hday { font-size: 24px; margin: 6px 0 -4px; }
-.history { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+/* One column: the list is in time order, and a grid made the reading order unclear. */
+.history { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; max-width: 640px; }
 .hcard { display: flex; gap: 14px; align-items: center; text-align: left; padding: 12px; border: 0; border-radius: 18px; background: var(--paper); box-shadow: 0 5px 0 #C9D6E2; min-width: 0; }
 .hcard:active { transform: translateY(3px); box-shadow: 0 2px 0 #C9D6E2; }
 .hinfo { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
