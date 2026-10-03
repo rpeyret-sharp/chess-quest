@@ -1,6 +1,6 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "chess", "url": "http://localhost:8765", "port": 8765 }
+    { "name": "chess", "runtimeExecutable": "node", "runtimeArgs": ["scripts/serve.js", "8765"], "port": 8765 }
   ]
 }

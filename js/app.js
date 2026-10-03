@@ -237,12 +237,13 @@
   const themeRec = (id) => (S.themes[id] = S.themes[id] || { solved: 0, next: 0 });
   const UNLOCK_AFTER = 3;
   const themeUnlocked = (i) => S.settings.unlockAll || i === 0 || themeRec(P.THEMES[i - 1].id).solved >= UNLOCK_AFTER;
-  // Solved puzzles needed to reach level 2 and level 3 of a puzzle type.
-  const LEVEL_AT = [0, 5, 15];
-  const themeLevel = (id) => { const n = themeRec(id).solved; return n < LEVEL_AT[1] ? 1 : n < LEVEL_AT[2] ? 2 : 3; };
+  // Solved puzzles needed to reach each level of a puzzle type (level 1 is free).
+  const LEVEL_AT = [0, 5, 15, 30];
+  const TOP_LEVEL = LEVEL_AT.length;
+  const themeLevel = (id) => { const n = themeRec(id).solved; let l = 1; while (l < TOP_LEVEL && n >= LEVEL_AT[l]) l++; return l; };
   function levelProgress(id) {
     const n = themeRec(id).solved, level = themeLevel(id);
-    if (level === 3) return { level, top: true, done: n };
+    if (level === TOP_LEVEL) return { level, top: true, done: n };
     const from = LEVEL_AT[level - 1], to = LEVEL_AT[level];
     return { level, top: false, done: n - from, need: to - from };
   }

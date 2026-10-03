@@ -26,7 +26,7 @@ for (const lesson of LESSONS) {
 
 let puzzles = 0;
 for (const theme of P.THEMES) {
-  for (const level of [1, 2, 3]) {
+  for (const level of [1, 2, 3, 4]) {
     for (let seed = 1; seed <= (theme.id === 'capture' || theme.id === 'check' ? 300 : 30); seed++) {
       const pz = P.makePuzzle(theme.id, level, seed);
       assert(pz, `${theme.id} L${level} seed ${seed} failed to generate`);
@@ -40,6 +40,12 @@ for (const theme of P.THEMES) {
         for (const m of pz.solutions) assert(!C.legalMoves(C.makeMove(pos, m)).some((r) => r.to === m.to), `${theme.id} L${level} seed ${seed}: accepted capture can be taken back`);
         for (const m of C.legalMoves(pos)) assert(!P.isWinningTrade(pos, m), `${theme.id} L${level} seed ${seed}: has a winning trade`);
       }
+      if (level === 4 && pz.goal !== 'escape') {
+        // Level 4 is about finding the one right move among distractions.
+        const keys = new Set(pz.solutions.map((m) => m.to));
+        assert(keys.size === 1, `${pz.id}: level 4 should have one answer square, got ${keys.size}`);
+      }
+      if (level === 4 && pz.goal === 'escape') assert(C.legalMoves(pos).length === 1, `${pz.id}: level 4 escape should have one saving move`);
       if (pz.goal === 'check') {
         for (const m of C.legalMoves(pos)) if (C.givesCheck(pos, m)) assert(P.GOALS.safecheck.test(pos, m), `${pz.id}: level 1 has an unsafe check`);
       }
