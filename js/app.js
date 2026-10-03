@@ -94,30 +94,82 @@
   document.addEventListener('pointerdown', () => Sound.unlock(), { capture: true });
 
   // ---------------------------------------------------------------- voice
+  // Sentences are pre-recorded with a natural voice (scripts/make-voice.js) and played through Web Audio.
+  // A sentence without a clip, such as one with a name not in scripts/voice-names.json, falls back to the device's own voice.
+  const V = window.Voice, CLIPS = (window.VoiceClips || {}).clips || {};
+  const buffers = new Map();
+  function clip(id) {
+    if (!buffers.has(id)) {
+      const url = id.startsWith('data:') ? id : `audio/voice/${id}.m4a`;
+      buffers.set(id, fetch(url).then((r) => r.arrayBuffer())
+        .then((b) => new Promise((ok, fail) => Sound.ctx.decodeAudioData(b, ok, fail)))
+        .catch(() => { buffers.delete(id); return null; }));
+    }
+    return buffers.get(id);
+  }
+  let talking = 0, source = null;
+  function playClip(buf, turn) {
+    return new Promise((done) => {
+      if (turn !== talking) return done();
+      source = Sound.ctx.createBufferSource();
+      source.buffer = buf;
+      source.connect(Sound.ctx.destination);
+      source.onended = () => { source = null; done(); };
+      source.start();
+    });
+  }
+
+  // Device voice: prefer a downloaded Premium or Enhanced voice, never a novelty one.
+  const NOVELTY = /albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|eddy|flo|grandma|grandpa|reed|rocko|sandy|shelley/i;
   let voice = null;
   function pickVoice() {
     if (!('speechSynthesis' in window)) return null;
-    const all = speechSynthesis.getVoices().filter((v) => v.lang && v.lang.toLowerCase().startsWith('en'));
-    if (!all.length) return null;
-    const lang = (navigator.language || 'en').toLowerCase();
-    const same = all.filter((v) => v.lang.toLowerCase().replace('_', '-') === lang);
-    const pool = same.length ? same : all;
-    return pool.find((v) => /samantha|karen|serena|moira|tessa|kate|daniel|martha|google/i.test(v.name)) || pool.find((v) => v.default) || pool[0];
+    const lang = (navigator.language || 'en-US').toLowerCase();
+    const score = (v) => (/premium/i.test(v.voiceURI + v.name) ? 8 : /enhanced|neural|natural/i.test(v.voiceURI + v.name) ? 4 : 0) +
+      (v.lang.toLowerCase().replace('_', '-') === lang ? 2 : 0) + (/samantha|ava|zoe|google us/i.test(v.name) ? 1 : 0);
+    const all = speechSynthesis.getVoices().filter((v) => v.lang && v.lang.toLowerCase().startsWith('en') && !NOVELTY.test(v.name));
+    return all.sort((a, b) => score(b) - score(a))[0] || null;
   }
   if ('speechSynthesis' in window) speechSynthesis.onvoiceschanged = () => { voice = pickVoice(); };
-  function say(text) {
-    if (!S.settings.voice || !('speechSynthesis' in window) || !text) return;
-    try {
-      speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(String(text).replace(/<[^>]+>/g, ' '));
-      voice = voice || pickVoice();
-      if (voice) { u.voice = voice; u.lang = voice.lang; }
-      u.rate = 0.92;
-      u.pitch = 1.1;
-      speechSynthesis.speak(u);
-    } catch (e) { /* speech unavailable */ }
+  function speakDevice(text, turn) {
+    return new Promise((done) => {
+      if (turn !== talking || !('speechSynthesis' in window)) return done();
+      try {
+        const u = new SpeechSynthesisUtterance(text);
+        voice = voice || pickVoice();
+        if (voice) { u.voice = voice; u.lang = voice.lang; }
+        u.rate = 0.95;
+        u.onend = u.onerror = () => done();
+        speechSynthesis.speak(u);
+      } catch (e) { done(); }
+    });
   }
-  const hush = () => { try { speechSynthesis.cancel(); } catch (e) { /* none */ } };
+
+  function say(text) {
+    hush();
+    if (!S.settings.voice || !text) return;
+    const parts = V.sentences(text);
+    const turn = talking;
+    Sound.unlock();
+    const ready = !!Sound.ctx;
+    const bufs = parts.map((p) => (ready && CLIPS[p.key] ? clip(CLIPS[p.key]) : Promise.resolve(null)));
+    (async () => {
+      for (let i = 0; i < parts.length; i++) {
+        const buf = await bufs[i];
+        if (turn !== talking) return;
+        if (buf) await playClip(buf, turn);
+        else {
+          if (ready && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) console.warn('No voice clip (run npm run voice):', parts[i].text);
+          await speakDevice(parts[i].text, turn);
+        }
+      }
+    })();
+  }
+  function hush() {
+    talking++;
+    if (source) { try { source.stop(); } catch (e) { /* already stopped */ } source = null; }
+    try { speechSynthesis.cancel(); } catch (e) { /* none */ }
+  }
 
   // ---------------------------------------------------------------- shared UI
   // Pip the pawn (img/pip*.webp): head and collar for the speech bubble, the whole pawn for big moments.
@@ -752,7 +804,7 @@
           : `<button class="btn green" type="button" data-act="next">Next puzzle <span class="ico">▶</span></button>`) +
           `<button class="btn ghost small" type="button" data-act="replay">↺ Play it again</button>`;
         if (levelUp) {
-          setTimeout(() => { toast(`<span class="emo">${theme.icon}</span> Level up! ${theme.title} is now level ${themeLevel(puzzle.themeId)}`); say(`Level up! ${theme.title} is now level ${themeLevel(puzzle.themeId)}!`); }, 900);
+          setTimeout(() => { toast(`<span class="emo">${theme.icon}</span> Level up! ${theme.title} is now level ${themeLevel(puzzle.themeId)}`); say(`Level up! ${theme.title.replace(/!$/, '')} is now level ${themeLevel(puzzle.themeId)}!`); }, 900);
         }
         if (unlocked) setTimeout(() => toast(`<span class="emo">${unlocked.icon}</span> New puzzles: ${unlocked.title}!`), levelUp ? 4200 : 900);
       },

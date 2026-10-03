@@ -1,8 +1,10 @@
 // Offline support: try the network first so updates show at once, fall back to the cache offline.
+importScripts('js/voice-clips.js');
 const CACHE = 'chess-quest-v3';
 const FILES = ['./', 'index.html', 'css/style.css', 'manifest.webmanifest', 'icons/icon.svg', 'icons/apple-touch-icon.png',
-  'js/engine.js', 'js/ai.js', 'js/pieces.js', 'js/puzzles.js', 'js/lessons.js', 'js/stage.js', 'js/board.js', 'js/app.js',
-  'img/me-face.webp', 'img/me-smile.webp', 'img/me-happy.webp', 'img/pip-head.webp', 'img/pip.webp'];
+  'js/engine.js', 'js/ai.js', 'js/pieces.js', 'js/puzzles.js', 'js/lessons.js', 'js/stage.js', 'js/board.js', 'js/voice.js', 'js/voice-clips.js', 'js/app.js',
+  'img/me-face.webp', 'img/me-smile.webp', 'img/me-happy.webp', 'img/pip-head.webp', 'img/pip.webp',
+  ...Object.values(self.VoiceClips.clips).map((id) => `audio/voice/${id}.m4a`)];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));

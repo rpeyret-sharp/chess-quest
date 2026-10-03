@@ -14,7 +14,7 @@ A chess learning app for a young beginner, built for the iPad. No accounts, no a
 - **Play**: full games or Pawn Battle against four robots: Chick (random), Turtle (greedy), Fox and Owl. There are Undo and Hint buttons, and dots show where a piece can move.
 - **My games and game review**: the last 50 games are saved (Play > My games). Replay any game move by move. Each of her moves is rated like on ChessKids: ★ Best, ✓ Good, ?! Inaccuracy, ? Mistake, ?? Blunder (including "missed a checkmate"), and for weaker moves **Show better move** draws her move in red and a better one in green. The game-over screen has a Review game button.
 - **Stickers**: 40 stickers to collect with stars.
-- **Pip the pawn** reads every instruction aloud (tap Pip to hear it again), so she does not need to read fluently.
+- **Pip the pawn** reads every instruction aloud in a natural recorded voice (tap Pip to hear it again), so she does not need to read fluently.
 - **Grown-ups** (press and hold the link at the bottom of the home screen, then answer a times-table question such as 7 × 8): name, sound, read-aloud, move dots, open all puzzle types, hint wait time, a progress summary, and a backup code to move progress between devices.
 
 Wrong moves get a short explanation, such as "That piece is protected", "Check, but the king can escape" or "Stalemate! That's a draw", rather than just a buzzer.
@@ -57,6 +57,18 @@ npm run build
 
 This writes a single self-contained page to `dist/chess-quest.html`.
 
+### Read-aloud voice
+
+Every sentence the app says is pre-recorded with [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M), a free neural text-to-speech model that runs on the Mac, and stored as small AAC clips in `audio/voice/`. The app plays them through Web Audio and only uses the device's own voice for a sentence that has no clip.
+
+After changing any text the app says, record the new sentences (needs macOS and `brew install uv`; the first run downloads the model):
+
+```bash
+npm run voice
+```
+
+`npm test` fails with the list of sentences that have no clip, so a forgotten recording shows up. Sentences with a player's name in them ("Hi …!", "Go, …!") are recorded for each name in `scripts/voice-names.json`; any other name is read with the device voice. If Kokoro says a word wrongly, give it the phonemes in `PRONOUNCE` in `scripts/make-voice.js` (as done for Éléonore).
+
 | File | Purpose |
 |---|---|
 | `js/engine.js` | Chess rules: legal moves, check, mate, castling, en passant, promotion |
@@ -66,3 +78,5 @@ This writes a single self-contained page to `dist/chess-quest.html`.
 | `js/board.js` | Touch board: tap or drag, move dots, arrows, animations |
 | `js/pieces.js` | Hand-drawn SVG pieces |
 | `js/app.js` | Screens, progress, rewards, sound, read-aloud |
+| `js/voice.js`, `js/voice-clips.js` | Read-aloud sentence splitting, and the generated table of recorded clips |
+| `scripts/make-voice.js`, `scripts/voice-lines.js`, `scripts/voice-tts.py` | Find every spoken sentence and record it with Kokoro |

@@ -5,7 +5,8 @@
   "description": "Chess lessons, puzzles and friendly robot games for young players. No dependencies.",
   "scripts": {
     "start": "node scripts/serve.js 8765",
-    "test": "node tests/perft.test.js && node tests/pawns.test.js && node tests/review.test.js && node tests/content.test.js",
-    "build": "node scripts/build-artifact.js"
+    "test": "node tests/perft.test.js && node tests/pawns.test.js && node tests/review.test.js && node tests/content.test.js && node tests/voice.test.js",
+    "build": "node scripts/build-artifact.js",
+    "voice": "node scripts/make-voice.js"
   }
 }

@@ -5,10 +5,12 @@ const ROOT = path.resolve(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 // Images referenced from code become data URIs so the page stays a single file.
 const inlineImages = (src) => src.replace(/img\/[\w-]+\.webp/g, (p) => `data:image/webp;base64,${fs.readFileSync(path.join(ROOT, p)).toString('base64')}`);
+// Voice clips too: their ids in the lookup table become data URIs.
+const inlineClips = (src) => src.replace(/: '([0-9a-f]{12})',$/gm, (_, id) => `: 'data:audio/mp4;base64,${fs.readFileSync(path.join(ROOT, `audio/voice/${id}.m4a`)).toString('base64')}',`);
 
 let html = read('index.html');
 html = html.replace(/<link rel="stylesheet" href="(css\/[^"]+)">/g, (_, p) => `<style>\n${read(p)}\n</style>`);
-html = html.replace(/<script src="(js\/[^"]+)"><\/script>/g, (_, p) => `<script>\n${inlineImages(read(p))}\n</script>`);
+html = html.replace(/<script src="(js\/[^"]+)"><\/script>/g, (_, p) => `<script>\n${inlineClips(inlineImages(read(p)))}\n</script>`);
 html = html.replace(/<link rel="(manifest|apple-touch-icon|icon)"[^>]*>\n?/g, '');
 html = html.replace(/<meta name="(apple-mobile-web-app-[^"]+|mobile-web-app-capable)"[^>]*>\n?/g, '');
 // The single-file host supplies its own document skeleton.
