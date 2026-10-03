@@ -26,13 +26,13 @@ Then open http://localhost:8765.
 
 Progress is saved in the iPad's browser storage. Use the backup code under Grown-ups if you ever move devices.
 
-**Option 1: GitHub Pages (recommended).** Push this folder to a GitHub repository, turn on Pages (Settings > Pages > Deploy from branch > `main` / root), then on the iPad open the Pages URL in Safari and choose **Share > Add to Home Screen**. It opens full-screen like an app and works offline after the first visit.
+**Option 1: GitHub Pages (recommended).** Push this folder to a GitHub repository, turn on Pages (Settings > Pages > Deploy from branch > `master` / root), then on the iPad open the Pages URL in Safari and choose **Share > Add to Home Screen**. It opens full-screen like an app and works offline after the first visit.
 
 **Option 2: same Wi-Fi.** Run `npm start` on the Mac, find the Mac's IP address (System Settings > Wi-Fi > Details), and open `http://<that-ip>:8765` on the iPad. The Mac has to be on, and offline mode is not available this way.
 
 ## Reporting a problem puzzle
 
-Every puzzle shows a small **Puzzle ID** under the board, such as `check-2-200005-v3` (theme, level, number, puzzle version). Lesson stages show a Lesson ID. To see that exact puzzle with the moves the app accepts:
+Every puzzle shows a small **Puzzle ID** next to the board, such as `check-2-200005-v3` (theme, level, number, puzzle version). Lesson stages show a Lesson ID. To see that exact puzzle with the moves the app accepts:
 
 ```bash
 node scripts/show-puzzle.js check-2-200005-v3
@@ -44,7 +44,7 @@ node scripts/show-puzzle.js check-2-200005-v3
 npm test
 ```
 
-This checks the move generator against standard perft counts, checks that every lesson stage can be solved, and checks 720 generated puzzles against their goals.
+This checks the move generator against standard perft counts, checks that every lesson stage can be solved, and checks 2,340 generated puzzles against their goals.
 
 ```bash
 npm run build
